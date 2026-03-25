@@ -2602,7 +2602,7 @@
             return months;
         }
 
-        const BID_MONTHS = generateBidMonths();
+        let BID_MONTHS = generateBidMonths();
         const STORE_KEY = "scp_v1";
         const DISCLAIMER_ACK_KEY_DESKTOP = 'scp_disclaimer_ack_desktop_v1';
         const DISCLAIMER_ACK_KEY_MOBILE = 'scp_disclaimer_ack_mobile_v1';
@@ -2659,6 +2659,8 @@
         let monthData = {};
 
         // Painting state
+        let _session = null;
+        let _saveDebounce = null;
         let isPainting = false;
         let paintDirty = false;
         let sheetInited = false;
@@ -2708,32 +2710,117 @@
 
 
         /* ═══════════════════════════════════════════════════════════════
-           INIT
+           SUPABASE DATA LOADING
         ═══════════════════════════════════════════════════════════════ */
-        function init() {
-            loadSettings();
-            const global = readStoredJSON(STORE_KEY, {});
+        async function loadBidMonthsFromSupabase() {
+            try {
+                const { data, error } = await _supa
+                    .from('month_instances')
+                    .select('id, year, min_work, max_work, max_x_blocks, alv, extra_x, periods(name, start_month_number, start_day, end_month_number, end_day, day_count)');
+                if (error || !data || data.length === 0) return null;
+                const months = data.map(row => {
+                    const p = row.periods;
+                    const start = new Date(row.year, p.start_month_number - 1, p.start_day);
+                    const end = new Date(row.year, p.end_month_number - 1, p.end_day);
+                    return {
+                        name: `${p.name} ${row.year}`,
+                        start, end,
+                        dayCount: p.day_count,
+                        id: `mi-${row.id}`,
+                        dbId: row.id,
+                        dbSettings: {
+                            maxXblocks: row.max_x_blocks != null ? row.max_x_blocks : 4,
+                            minWork: row.min_work != null ? row.min_work : 4,
+                            maxWork: row.max_work != null ? row.max_work : 99,
+                        }
+                    };
+                });
+                months.sort((a, b) => a.start - b.start);
+                return months;
+            } catch (e) {
+                console.error('Supabase months load failed:', e);
+                return null;
+            }
+        }
 
+        function loadFromLocalStorage() {
+            const global = readStoredJSON(STORE_KEY, {});
             BID_MONTHS.forEach((m, i) => {
                 const saved = global[m.id];
-                monthData[i] = saved || {
-                    current: Array(m.dayCount).fill('X'),
-                    desired: Array(m.dayCount).fill('X'),
-                };
+                const base = saved || { current: Array(m.dayCount).fill('X'), desired: Array(m.dayCount).fill('X') };
+                monthData[i] = normalizeMonthData(base, m);
+            });
+        }
 
-                monthData[i].current = normalizeDayArray(monthData[i].current, m.dayCount, 'X');
+        async function loadSchedulesFromSupabase() {
+            if (!_session) return;
+            try {
+                const { data, error } = await _supa
+                    .from('pcs_schedules')
+                    .select('month_id, current_days, desired_days, staffing')
+                    .eq('user_id', _session.user.id);
+                if (error) throw error;
+                const schedMap = {};
+                (data || []).forEach(row => { schedMap[row.month_id] = row; });
+                BID_MONTHS.forEach((m, i) => {
+                    const row = m.dbId ? schedMap[m.dbId] : null;
+                    const base = row
+                        ? { current: row.current_days, desired: row.desired_days, staffing: row.staffing }
+                        : { current: Array(m.dayCount).fill('X'), desired: Array(m.dayCount).fill('X') };
+                    monthData[i] = normalizeMonthData(base, m);
+                });
+            } catch (e) {
+                console.error('Supabase schedule load failed:', e);
+                loadFromLocalStorage();
+            }
+        }
 
-                const desiredBase = (Array.isArray(monthData[i].desired) && monthData[i].desired.length === m.dayCount)
-                    ? monthData[i].desired
-                    : [...monthData[i].current];
-                monthData[i].desired = normalizeDayArray(desiredBase, m.dayCount, 'X');
+        function normalizeMonthData(raw, m) {
+            const current = normalizeDayArray(raw.current, m.dayCount, 'X');
+            const desiredBase = (Array.isArray(raw.desired) && raw.desired.length === m.dayCount)
+                ? raw.desired
+                : [...current];
+            return {
+                current,
+                desired: normalizeDayArray(desiredBase, m.dayCount, 'X'),
+                staffing: normalizeStaffingArray(raw.staffing, m.dayCount),
+            };
+        }
 
-                // true = OK (blue), false = blocked (black)
-                monthData[i].staffing = normalizeStaffingArray(monthData[i].staffing, m.dayCount);
+        /* ═══════════════════════════════════════════════════════════════
+           INIT
+        ═══════════════════════════════════════════════════════════════ */
+        async function init() {
+            loadSettings();
+
+            // 1. Try to load custom bid periods from Supabase (anon-readable).
+            const supaMonths = await loadBidMonthsFromSupabase();
+            if (supaMonths) BID_MONTHS = supaMonths;
+
+            // 2. Load schedule data
+            if (_session) {
+                await loadSchedulesFromSupabase();
+            } else {
+                loadFromLocalStorage();
+            }
+
+            BID_MONTHS.forEach((m, i) => {
+                if (!monthData[i]) {
+                    monthData[i] = normalizeMonthData(
+                        { current: Array(m.dayCount).fill('X'), desired: Array(m.dayCount).fill('X') },
+                        m
+                    );
+                }
             });
 
             // Re-evaluate here so Chrome/Edge DevTools viewport metrics are applied
             usingMobile = isMobileDevice();
+            // Default to current month
+            const today = new Date();
+            BID_MONTHS.forEach((m, i) => {
+                if (today >= m.start && today <= m.end) currentIdx = i;
+            });
+
             applyLayout();
             changeFocusMonth(currentIdx);
             setBrush(activeBrush);
@@ -2970,6 +3057,25 @@
             const out = {};
             BID_MONTHS.forEach((m, i) => { out[m.id] = monthData[i]; });
             localStorage.setItem(STORE_KEY, JSON.stringify(out));
+
+            // Debounced upsert to Supabase — avoids a round-trip on every paint pixel
+            if (_session) {
+                clearTimeout(_saveDebounce);
+                _saveDebounce = setTimeout(() => {
+                    const m = BID_MONTHS[currentIdx];
+                    if (!m || !m.dbId) return;
+                    _supa.from('pcs_schedules').upsert({
+                        user_id: _session.user.id,
+                        month_id: m.dbId,
+                        current_days: monthData[currentIdx].current,
+                        desired_days: monthData[currentIdx].desired,
+                        staffing: monthData[currentIdx].staffing,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'user_id,month_id' }).then(({ error }) => {
+                        if (error) console.error('Supabase PCS save error:', error);
+                    });
+                }, 1500);
+            }
         }
 
         function flushPendingSave() {
@@ -4776,8 +4882,9 @@
         async function start() {
             const { data: { session } } = await _supa.auth.getSession();
             if (!session) { window.location.replace('/'); return; }
+            _session = session;
             try {
-                init();
+                await init();
             } catch (err) {
                 console.error('Application startup failed', err);
             const dContent = document.getElementById('d-pcs-content');
