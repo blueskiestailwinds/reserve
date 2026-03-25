@@ -378,8 +378,37 @@
             display: flex;
             align-items: center;
             padding: 0 16px;
+            gap: 10px;
             z-index: 100;
         }
+
+        .home-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #2b2c2d;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .home-btn:active { background: #3a3b3c; }
+
+        .home-link-d {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-bottom: 12px;
+        }
+
+        .home-link-d:hover { color: var(--text-main); }
 
         .m-month-nav {
             display: flex;
@@ -681,6 +710,7 @@
     <div id="desktop-root">
         <div class="d-layout">
             <div class="d-sidebar">
+                <a class="home-link-d" href="/">← Home</a>
                 <div class="card">
                     <h3>Bid Period</h3>
                     <select id="d-month-selector" onchange="changeFocusMonth(parseInt(this.value))"
@@ -768,6 +798,7 @@
 ═══════════════════════════════════════════════════════════ -->
     <div id="mobile-root">
         <div id="m-top-bar">
+            <a class="home-btn" href="/" aria-label="Home">⌂</a>
             <div class="m-month-nav">
                 <div class="m-nav-btn" id="m-btn-prev">&#8249;</div>
                 <div id="m-month-title">Loading…</div>
@@ -1097,10 +1128,8 @@
             // 2. Check for an existing session (e.g. magic-link redirect).
             //    onAuthStateChange (registered at module level) handles future sign-in/out.
             const { data: { session } } = await _supa.auth.getSession();
-            if (session && !_session) {
-                // Only load if onAuthStateChange hasn't already fired for this session
-                _session = session;
-            }
+            if (!session) { window.location.replace('/'); return; }
+            if (!_session) _session = session;
 
             // 3. Populate month selectors
             const today = new Date();

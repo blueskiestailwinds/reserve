@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>PCS Planner</title>
     <link rel="icon" type="image/png" href="favicon.png">
-
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
     <style>
         /* ═══════════════════════════════════════════════════════════
@@ -1324,6 +1324,34 @@
             gap: 10px;
         }
 
+        .home-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #2b2c2d;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .home-btn:active { background: #3a3b3c; }
+
+        .home-link-d {
+            display: inline-block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            margin-bottom: 12px;
+        }
+
+        .home-link-d:hover { color: var(--text-main); }
+
         .m-month-nav {
             display: flex;
             align-items: center;
@@ -2310,6 +2338,7 @@
 
             </div>
         </div>
+        <a class="home-link-d" href="/" style="padding: 12px 16px 0;">← Home</a>
         <div class="d-layout">
 
             <!-- Main content -->
@@ -2395,6 +2424,7 @@
 ═══════════════════════════════════════════════════════════ -->
     <div id="mobile-root">
         <div id="m-top-bar">
+            <a class="home-btn" href="/" aria-label="Home">⌂</a>
             <div class="m-month-nav">
                 <div class="m-nav-btn" id="m-btn-prev">&#8249;</div>
                 <div id="m-month-title">Loading…</div>
@@ -4739,10 +4769,17 @@
         /* ═══════════════════════════════════════════════════════════════
            GO
         ═══════════════════════════════════════════════════════════════ */
-        try {
-            init();
-        } catch (err) {
-            console.error('Application startup failed', err);
+        const SUPABASE_URL = 'https://sowczbjrrqazotbqpzrr.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_-wiDJ-bZPss16vIOL_HLrA_L5SJfuyH';
+        const _supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function start() {
+            const { data: { session } } = await _supa.auth.getSession();
+            if (!session) { window.location.replace('/'); return; }
+            try {
+                init();
+            } catch (err) {
+                console.error('Application startup failed', err);
             const dContent = document.getElementById('d-pcs-content');
             if (dContent) {
                 dContent.innerHTML = `<div class="pcs-status-bar warning">
@@ -4757,6 +4794,9 @@
         </div>`;
             }
         }
+        }
+
+        start();
     </script>
 </body>
 
