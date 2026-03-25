@@ -398,7 +398,9 @@
             transition: background 0.15s;
         }
 
-        .home-btn:active { background: #3a3b3c; }
+        .home-btn:active {
+            background: #3a3b3c;
+        }
 
         .home-link-d {
             display: block;
@@ -408,7 +410,9 @@
             margin-bottom: 12px;
         }
 
-        .home-link-d:hover { color: var(--text-main); }
+        .home-link-d:hover {
+            color: var(--text-main);
+        }
 
         .m-month-nav {
             display: flex;
@@ -858,19 +862,14 @@
                         accept=".json">
                 </div>
                 <div class="m-sheet-section">
-                    <h3>Legend</h3>
+                    <h3>Notes</h3>
                     <div
                         style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.82rem;color:var(--text-muted)">
-                        <div><b style="color:var(--text-main)">X</b> X-day</div>
-                        <div><b style="color:var(--text-main)">CI</b> Carry In</div>
-                        <div><b style="color:var(--text-main)">A</b> Absence</div>
-                        <div><b style="color:var(--text-main)">R</b> Reserve</div>
-                        <div><b style="color:var(--text-main)">CQ</b> Training</div>
-                        <div><b style="color:var(--text-main)">C</b> Coverage</div>
                     </div>
                     <div style="margin-top:10px;font-size:0.75rem;color:var(--text-muted)">
                         <div>• Min work block doesn't apply to blocks touching month end.</div>
                         <div>• Availability determines X-day req. via 12.M.2 table.</div>
+                        <div>• Absence can be any leave.</div>
                     </div>
                 </div>
             </div>
@@ -1150,9 +1149,9 @@
                 loadFromLocalStorage();
             }
 
-            // 5. Determine focused month
+            // 5. Determine focused month — default to next month, restore saved selection if present
             BID_MONTHS.forEach((m, i) => {
-                if (today >= m.start && today <= m.end) currentIdx = i;
+                if (today >= m.start && today <= m.end) currentIdx = Math.min(i + 1, BID_MONTHS.length - 1);
             });
             const savedIdx = localStorage.getItem(STORE_KEY + '_idx');
             if (savedIdx !== null) currentIdx = parseInt(savedIdx);
