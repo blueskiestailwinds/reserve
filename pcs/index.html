@@ -5000,7 +5000,6 @@
 
         async function start() {
             const { data: { session } } = await _supa.auth.getSession();
-            if (!session) { window.location.replace('/'); return; }
             _session = session;
             try {
                 await init();

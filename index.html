@@ -204,37 +204,37 @@
 <body>
     <h1>Tools</h1>
 
-    <!-- Login view — shown when signed out -->
+    <!-- Login card — shown when signed out -->
     <div id="login-view" class="login-card hidden">
-        <p>Sign in to access your tools. No password — we'll email you a magic link.</p>
+        <p>Sign in to sync your schedules across devices. No password — we'll email you a magic link.</p>
         <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email">
         <button class="btn" onclick="sendMagicLink()">Send Magic Link</button>
         <div id="auth-msg"></div>
     </div>
 
-    <!-- App view — shown when signed in -->
-    <div id="app-view" class="hidden">
-        <div id="user-bar">
-            <span id="user-email"></span>
-            <button onclick="signOut()">Sign out</button>
-        </div>
-        <div class="tool-grid">
-            <a class="tool-card" href="/pbs/">
-                <span class="icon">📅</span>
-                <div class="info">
-                    <span class="name">PBS Simulator</span>
-                    <span class="desc">Plan your reserve month</span>
-                </div>
-            </a>
+    <!-- User bar — shown when signed in -->
+    <div id="user-bar" class="hidden">
+        <span id="user-email"></span>
+        <button onclick="signOut()">Sign out</button>
+    </div>
 
-            <a class="tool-card" href="/pcs/">
-                <span class="icon">✈️</span>
-                <div class="info">
-                    <span class="name">PCS Planner</span>
-                    <span class="desc">PCS Strategery</span>
-                </div>
-            </a>
-        </div>
+    <!-- Tool grid — always visible -->
+    <div class="tool-grid">
+        <a class="tool-card" href="/pbs/">
+            <span class="icon">📅</span>
+            <div class="info">
+                <span class="name">PBS Simulator</span>
+                <span class="desc">Plan your reserve month</span>
+            </div>
+        </a>
+
+        <a class="tool-card" href="/pcs/">
+            <span class="icon">✈️</span>
+            <div class="info">
+                <span class="name">PCS Planner</span>
+                <span class="desc">PCS Strategery</span>
+            </div>
+        </a>
     </div>
 
     <script>
@@ -245,7 +245,7 @@
         function renderAuth(session) {
             const loggedIn = !!session;
             document.getElementById('login-view').classList.toggle('hidden', loggedIn);
-            document.getElementById('app-view').classList.toggle('hidden', !loggedIn);
+            document.getElementById('user-bar').classList.toggle('hidden', !loggedIn);
             if (loggedIn) {
                 document.getElementById('user-email').textContent = session.user.email;
             }

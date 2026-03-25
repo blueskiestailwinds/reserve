@@ -1127,7 +1127,6 @@
             // 2. Check for an existing session (e.g. magic-link redirect).
             //    onAuthStateChange (registered at module level) handles future sign-in/out.
             const { data: { session } } = await _supa.auth.getSession();
-            if (!session) { window.location.replace('/'); return; }
             if (!_session) _session = session;
 
             // 3. Populate month selectors
