@@ -412,6 +412,23 @@
             margin-bottom: 14px;
         }
 
+        .btn-import-pbs {
+            margin-left: auto;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 5px;
+            border: 1px solid #2563eb;
+            background: transparent;
+            color: #93c5fd;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-import-pbs:hover {
+            background: #1a2744;
+        }
+
         .d-cal-panel-badge {
             font-size: 0.65rem;
             font-weight: 800;
@@ -1340,7 +1357,9 @@
             transition: background 0.15s;
         }
 
-        .home-btn:active { background: #3a3b3c; }
+        .home-btn:active {
+            background: #3a3b3c;
+        }
 
         .home-link-d {
             display: inline-block;
@@ -1350,7 +1369,9 @@
             margin-bottom: 12px;
         }
 
-        .home-link-d:hover { color: var(--text-main); }
+        .home-link-d:hover {
+            color: var(--text-main);
+        }
 
         .m-month-nav {
             display: flex;
@@ -2236,6 +2257,21 @@
             border-color: var(--modal-accent-border);
             color: var(--modal-accent-text);
         }
+
+        .import-pbs-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 4300;
+            background: var(--overlay-bg);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .import-pbs-overlay.visible {
+            display: flex;
+        }
     </style>
 </head>
 
@@ -2292,6 +2328,21 @@
             <p class="import-note-text" id="import-note-text">Employee appears to have a line for this bid period.</p>
             <div class="import-note-actions">
                 <button class="btn" id="import-note-ok-btn" type="button">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-pbs-overlay" class="import-pbs-overlay" role="dialog" aria-modal="true">
+        <div class="ppr-modal">
+            <div class="ppr-head">
+                <h3>Import from PBS Planner</h3>
+            </div>
+            <div class="ppr-body">
+                <p class="ppr-subtitle" id="import-pbs-subtitle"></p>
+                <div class="ppr-actions">
+                    <button class="btn cancel" id="import-pbs-cancel-btn" type="button">Cancel</button>
+                    <button class="btn confirm" id="import-pbs-confirm-btn" type="button">Import</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2376,6 +2427,7 @@
                         <div class="d-cal-panel-header">
                             <span class="d-cal-panel-badge badge-current">CURRENT</span>
                             <span class="d-cal-panel-title" id="d-current-panel-title">Loading…</span>
+                            <button class="btn-import-pbs" onclick="importFromPBS()">Import from PBS Planner</button>
                         </div>
                         <div id="d-current-grid"></div>
                         <div class="d-cal-panel-footer">
@@ -3076,6 +3128,73 @@
                     });
                 }, 1500);
             }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           IMPORT FROM PBS PLANNER
+        ═══════════════════════════════════════════════════════════════ */
+        const PBS_TO_PCS_CODE_MAP = { C: 'R' };
+
+        function confirmImportFromPBS(monthName) {
+            return new Promise(resolve => {
+                const overlay = document.getElementById('import-pbs-overlay');
+                const subtitle = document.getElementById('import-pbs-subtitle');
+                const cancelBtn = document.getElementById('import-pbs-cancel-btn');
+                const confirmBtn = document.getElementById('import-pbs-confirm-btn');
+
+                subtitle.textContent = `Import your PBS planner data for ${monthName} as the current schedule? This will overwrite any changes you've made.`;
+                overlay.classList.add('visible');
+
+                function close(result) {
+                    overlay.classList.remove('visible');
+                    cancelBtn.removeEventListener('click', onCancel);
+                    confirmBtn.removeEventListener('click', onConfirm);
+                    resolve(result);
+                }
+                function onCancel() { close(false); }
+                function onConfirm() { close(true); }
+
+                cancelBtn.addEventListener('click', onCancel, { once: true });
+                confirmBtn.addEventListener('click', onConfirm, { once: true });
+            });
+        }
+
+        async function importFromPBS() {
+            const m = BID_MONTHS[currentIdx];
+            if (!m || !m.dbId) {
+                await showImportNote('This month is not available in the database.', 'Import from PBS Planner');
+                return;
+            }
+            if (!_session) {
+                await showImportNote('You must be signed in to import from PBS Planner.', 'Import from PBS Planner');
+                return;
+            }
+
+            const confirmed = await confirmImportFromPBS(m.name);
+            if (!confirmed) return;
+
+            const { data, error } = await _supa
+                .from('schedules')
+                .select('days')
+                .eq('user_id', _session.user.id)
+                .eq('month_id', m.dbId)
+                .single();
+
+            if (error || !data) {
+                await showImportNote(`No PBS Planner schedule found for ${m.name}.`, 'Import from PBS Planner');
+                return;
+            }
+
+            const mapped = normalizeDayArray(
+                data.days.map(code => PBS_TO_PCS_CODE_MAP[code] ?? code),
+                m.dayCount,
+                'X'
+            );
+
+            monthData[currentIdx].current = mapped;
+            save({ immediate: true });
+            renderAll();
+            markPCSStale();
         }
 
         function flushPendingSave() {
@@ -4887,20 +5006,20 @@
                 await init();
             } catch (err) {
                 console.error('Application startup failed', err);
-            const dContent = document.getElementById('d-pcs-content');
-            if (dContent) {
-                dContent.innerHTML = `<div class="pcs-status-bar warning">
+                const dContent = document.getElementById('d-pcs-content');
+                if (dContent) {
+                    dContent.innerHTML = `<div class="pcs-status-bar warning">
             <span class="pcs-status-icon">⚠</span>
             <span>App startup failed. Refresh the page to recover.</span>
         </div>`;
-            }
-            const mPanel = document.getElementById('m-panel-curr');
-            if (mPanel) {
-                mPanel.innerHTML = `<div class="m-changes-card">
+                }
+                const mPanel = document.getElementById('m-panel-curr');
+                if (mPanel) {
+                    mPanel.innerHTML = `<div class="m-changes-card">
             <div class="changes-empty">App startup failed. Refresh the page to recover.</div>
         </div>`;
+                }
             }
-        }
         }
 
         start();
