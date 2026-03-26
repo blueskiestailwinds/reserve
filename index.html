@@ -10,31 +10,10 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
+    <link rel="stylesheet" href="./shared.css">
     <style>
-        :root {
-            --bg: #131314;
-            --card-bg: #1e1f20;
-            --border: #333537;
-            --text-main: #e3e3e3;
-            --text-muted: #94a3b8;
-            --x-green: #15803d;
-            --r-yellow: #fde047;
-        }
-
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
         html,
         body {
-            margin: 0;
-            padding: 0;
-            background: var(--bg);
-            color: var(--text-main);
-            font-family: 'Segoe UI', system-ui, sans-serif;
             min-height: 100vh;
         }
 
@@ -120,9 +99,8 @@
             background: var(--card-bg);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 2rem 1.5rem;
+            padding: 1.25rem 1.5rem;
             width: 100%;
-            max-width: 420px;
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
@@ -176,7 +154,6 @@
         #user-bar {
             font-size: 0.82rem;
             color: var(--text-muted);
-            margin-bottom: 1.25rem;
             text-align: center;
         }
 
@@ -204,23 +181,24 @@
 <body>
     <h1>Reserve Schedule Tools</h1>
 
-    <!-- Login card — shown when signed out -->
-    <div id="login-view" class="login-card hidden">
-        <p>Sign in to sync your schedules across devices. No password — we'll email you a magic link.</p>
-        <p>You can proceed to the apps below without logging in. No data will be saved.</p>
-        <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email">
-        <button class="btn" onclick="sendMagicLink()">Send Magic Link</button>
-        <div id="auth-msg"></div>
-    </div>
-
-    <!-- User bar — shown when signed in -->
-    <div id="user-bar" class="hidden">
-        <span id="user-email"></span>
-        <button onclick="signOut()">Sign Out</button>
-    </div>
-
     <!-- Tool grid — always visible -->
     <div class="tool-grid">
+
+        <!-- Login card — shown when signed out -->
+        <div id="login-view" class="login-card hidden">
+            <p>Sign in to sync your schedules across devices. No password — we'll email you a magic link.</p>
+            <p>You can proceed to the apps below without logging in. No data will be saved.</p>
+            <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email">
+            <button class="btn" onclick="sendMagicLink()">Send Magic Link</button>
+            <div id="auth-msg"></div>
+        </div>
+
+        <!-- User bar — shown when signed in -->
+        <div id="user-bar" class="hidden">
+            <span id="user-email"></span>
+            <button onclick="signOut()">Sign Out</button>
+        </div>
+
         <a class="tool-card" href="/pbs/">
             <span class="icon">📅</span>
             <div class="info">
