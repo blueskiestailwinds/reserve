@@ -26,7 +26,7 @@
             --border: #333537;
             --text-main: #e3e3e3;
             --text-muted: #94a3b8;
-            --sheet-peek: 72px;
+            --sheet-peek: 0px;
         }
 
         *,
@@ -404,10 +404,10 @@
 
         .home-link-d {
             display: block;
-            font-size: 0.95rem;
+            font-size: 1.6rem;
             color: var(--text-muted);
             text-decoration: none;
-            margin-bottom: 12px;
+            margin-left: 10px;
         }
 
         .home-link-d:hover {
@@ -482,6 +482,13 @@
             transform-origin: center;
         }
 
+        .m-palette-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
         .m-palette {
             display: flex;
             gap: 8px;
@@ -490,13 +497,33 @@
             padding: 10px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            margin-bottom: 12px;
+            flex: 1;
         }
 
         .m-palette .brush {
             width: 42px;
             height: 42px;
             font-size: 12px;
+        }
+
+        .m-settings-btn {
+            flex-shrink: 0;
+            width: 42px;
+            height: 42px;
+            background: #2b2c2d;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .m-settings-btn:active {
+            background: #3a3b3c;
         }
 
         .m-cal-card {
@@ -633,6 +660,10 @@
             white-space: nowrap;
         }
 
+        #m-sheet-peek-content {
+            display: none;
+        }
+
         #m-sheet-body {
             overflow-y: auto;
             max-height: calc(100svh - 56px - var(--sheet-peek));
@@ -714,7 +745,7 @@
     <div id="desktop-root">
         <div class="d-layout">
             <div class="d-sidebar">
-                <a class="home-link-d" href="/">← Home</a>
+                <a class="home-link-d" href="/">🏠</a>
                 <div class="card">
                     <h3>Bid Period</h3>
                     <select id="d-month-selector" onchange="changeFocusMonth(parseInt(this.value))"
@@ -1401,10 +1432,13 @@
             const m = BID_MONTHS[idx];
 
             const palette = isSide ? '' : `
-        <div class="m-palette">
-            ${['R', 'X', 'A', 'C', 'CQ', 'CI'].map(b =>
+        <div class="m-palette-row">
+            <button class="m-settings-btn" onclick="openSheet()">☰</button>
+            <div class="m-palette">
+                ${['R', 'X', 'A', 'C', 'CQ', 'CI'].map(b =>
                 `<div class="brush ${b}${b === activeBrush ? ' active' : ''}" data-brush="${b}">${b}</div>`
             ).join('')}
+            </div>
         </div>`;
 
             const status = (!isSide && availCount !== undefined) ? `
@@ -1571,6 +1605,7 @@
             });
 
             sheet.addEventListener('touchstart', e => {
+                open = sheet.classList.contains('expanded');
                 startY = e.touches[0].clientY;
                 startT = Date.now();
                 dragging = false;
@@ -1603,6 +1638,10 @@
                 open = vel > 0.5 ? dy < 0 : (baseT + dy) < maxT() * 0.45;
                 sheet.classList.toggle('expanded', open);
             }, { passive: true });
+        }
+
+        function openSheet() {
+            document.getElementById('m-bottom-sheet').classList.add('expanded');
         }
 
 
