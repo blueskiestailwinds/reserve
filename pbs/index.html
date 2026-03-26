@@ -102,21 +102,10 @@
             border-top: 6px solid var(--border);
         }
 
-        .d-legend-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            font-size: 0.85rem;
-        }
 
         .d-notes {
-            margin-top: 15px;
-            border-top: 1px solid var(--border);
-            padding-top: 15px;
             font-size: 0.85rem;
         }
-
-
 
         .d-num-input {
             width: 80px;
@@ -155,7 +144,8 @@
 
         #m-swipe-viewport {
             position: fixed;
-            top: 56px; /* overridden by JS after palette bar is measured */
+            top: 56px;
+            /* overridden by JS after palette bar is measured */
             left: 0;
             right: 0;
             bottom: var(--sheet-peek);
@@ -306,15 +296,11 @@
                 <div id="d-alerts"></div>
                 <div class="card">
                     <h3>Legend & Notes</h3>
-                    <div class="d-legend-grid">
-                        <div>
-                            <div><b>A:</b> Absence (Leaves, Vacaction; Prorates X [12.M.2])</div>
-                            <div><b>CI:</b> Carry In (Counts as R)</div>
-                            <div><b>C:</b> Coverage (Just a different color R)</div>
-                        </div>
-                    </div>
                     <div class="d-notes">
                         <ol>
+                            <li><b>A:</b> Absence (Leaves, Vacaction; Prorates X per 12.M.2 table)</li>
+                            <li><b>CI:</b> Carry In (Counts as R)</li>
+                            <li><b>C:</b> Coverage (Just a different color R)</li>
                             <li>Min work block doesn't apply to blocks touching the end of the month.</li>
                             <li>Availability determines X-day requirement via 12.M.2 table.</li>
                         </ol>

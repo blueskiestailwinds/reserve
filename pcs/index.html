@@ -1485,59 +1485,6 @@
             color: var(--text-muted);
         }
 
-        /* First-visit disclaimer modal */
-        .disclaimer-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 4000;
-            background: var(--overlay-bg);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-        }
-
-        .disclaimer-overlay.visible {
-            display: flex;
-        }
-
-        .disclaimer-modal {
-            width: min(560px, 100%);
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: var(--modal-radius);
-            padding: 18px;
-            box-shadow: var(--modal-shadow);
-        }
-
-        .disclaimer-modal h2 {
-            margin: 0 0 10px;
-            font-size: 1rem;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-
-        .disclaimer-modal p {
-            margin: 0;
-            color: var(--text-muted);
-            line-height: 1.45;
-            font-size: 0.92rem;
-        }
-
-        .disclaimer-actions {
-            margin-top: 14px;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .disclaimer-actions .btn {
-            width: auto;
-            min-width: 130px;
-            margin-top: 0;
-            background: var(--modal-accent-bg);
-            border-color: var(--modal-accent-border);
-            color: var(--modal-accent-text);
-        }
 
         .ppr-overlay {
             position: fixed;
@@ -1783,17 +1730,6 @@
 
 <body>
 
-    <div id="disclaimer-overlay" class="disclaimer-overlay" role="dialog" aria-modal="true"
-        aria-labelledby="disclaimer-title" aria-describedby="disclaimer-text">
-        <div class="disclaimer-modal">
-            <h2 id="disclaimer-title">Testing Tool Notice</h2>
-            <p id="disclaimer-text">This is only a testing tool, not a source of truth. Always check your bids against
-                the PWA and SRH.</p>
-            <div class="disclaimer-actions">
-                <button class="btn" id="disclaimer-ack-btn" type="button">I Understand</button>
-            </div>
-        </div>
-    </div>
 
     <div id="ppr-overlay" class="ppr-overlay" role="dialog" aria-modal="true" aria-labelledby="ppr-title"
         aria-describedby="ppr-subtitle">
@@ -2123,7 +2059,6 @@
                     applyLayout();
                     syncUI();
                     renderAll();
-                    showFirstVisitDisclaimer();
                     if (usingMobile) { initBottomSheet(); }
                 }
             }, 150);
@@ -2170,8 +2105,6 @@
 
         let BID_MONTHS = generateBidMonths();
         const STORE_KEY = "scp_v1";
-        const DISCLAIMER_ACK_KEY_DESKTOP = 'scp_disclaimer_ack_desktop_v1';
-        const DISCLAIMER_ACK_KEY_MOBILE = 'scp_disclaimer_ack_mobile_v1';
         const ALLOWED_DAY_CODES = new Set(['X', 'R', 'A', 'CQ', 'CI', 'IVD']);
 
         function escapeHTML(str) {
@@ -2391,31 +2324,9 @@
             changeFocusMonth(currentIdx);
             setBrush(activeBrush);
             initDesktopMousePainting();
-            showFirstVisitDisclaimer();
-
             if (usingMobile) {
                 initBottomSheet();
             }
-        }
-
-        function showFirstVisitDisclaimer() {
-            const ackKey = usingMobile ? DISCLAIMER_ACK_KEY_MOBILE : DISCLAIMER_ACK_KEY_DESKTOP;
-            if (localStorage.getItem(ackKey) === '1') return;
-
-            const overlay = document.getElementById('disclaimer-overlay');
-            const ackBtn = document.getElementById('disclaimer-ack-btn');
-            if (!overlay || !ackBtn) return;
-
-            overlay.classList.add('visible');
-            document.body.style.overflow = 'hidden';
-
-            ackBtn.addEventListener('click', () => {
-                localStorage.setItem(ackKey, '1');
-                overlay.classList.remove('visible');
-                if (!usingMobile) {
-                    document.body.style.overflow = '';
-                }
-            }, { once: true });
         }
 
         function confirmConvertedEmployeeId(candidateId) {
