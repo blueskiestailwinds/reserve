@@ -490,11 +490,35 @@ input[type="checkbox"] {
   margin-bottom: 8px;
 }
 
+.d-col-wrap {
+  width: fit-content;
+}
+
+.d-palette .brush {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.d-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 44px);
+  gap: 5px;
+  justify-content: center;
+  align-content: start;
+}
+
+.d-calendar-grid .day {
+  width: 44px;
+  height: 52px;
+  cursor: crosshair;
+}
+
 .d-layout {
   display: flex;
   gap: 24px;
   align-items: flex-start;
-  max-width: 1700px;
+  width: fit-content;
   margin: 0 auto;
 }
 

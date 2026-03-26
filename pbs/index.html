@@ -61,19 +61,8 @@
         }
 
         .d-calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 44px);
-            gap: 5px;
-            justify-content: center;
-            align-content: start;
             flex-grow: 1;
             min-height: 345px;
-        }
-
-        .d-calendar-grid .day {
-            width: 44px;
-            height: 52px;
-            cursor: crosshair;
         }
 
         .d-palette {
@@ -85,11 +74,6 @@
             border: 1px solid var(--border);
             margin-bottom: 20px;
             justify-content: center;
-        }
-
-        .d-palette .brush {
-            width: 44px;
-            height: 44px;
         }
 
         .d-sidebar-section {
@@ -278,6 +262,7 @@
             </div>
 
             <div class="d-main">
+                <div class="d-col-wrap">
                 <div class="d-palette">
                     <div class="brush R" data-brush="R" onclick="setBrush('R')">R</div>
                     <div class="brush X" data-brush="X" onclick="setBrush('X')">X</div>
@@ -306,6 +291,7 @@
                         </ol>
                     </div>
                 </div>
+                </div><!-- /.d-col-wrap -->
             </div>
         </div>
     </div>
