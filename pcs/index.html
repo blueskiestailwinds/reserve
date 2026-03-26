@@ -1177,12 +1177,6 @@
             border-radius: 4px;
         }
 
-        .m-cal-title {
-            font-size: 0.95rem;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
-        }
 
         .m-calendar-grid .day.sday .day-num {
             font-size: 14px;
@@ -3062,7 +3056,6 @@
             <div class="m-cal-card">
                 <div class="m-cal-header">
                     <span class="m-cal-badge badge-current">CURRENT</span>
-                    <span class="m-cal-title">${m.name}</span>
                     <button class="btn-import-pbs" onclick="importFromPBS()">Import from PBS Planner</button>
                 </div>
                 ${buildCalendarGridHTML(idx, 'current', 'm-calendar-grid')}
@@ -3076,7 +3069,6 @@
             <div class="m-cal-card">
                 <div class="m-cal-header">
                     <span class="m-cal-badge badge-desired">DESIRED</span>
-                    <span class="m-cal-title">${m.name}</span>
                     <button class="btn-import-pbs" onclick="copyCurrentToDesired()">Copy from Current</button>
                 </div>
                 ${buildCalendarGridHTML(idx, 'desired', 'm-calendar-grid')}
@@ -3090,7 +3082,6 @@
             <div class="m-cal-card">
                 <div class="m-cal-header">
                     <span class="m-cal-badge badge-staffing">RESERVE LEVELS</span>
-                    <span class="m-cal-title">${m.name}</span>
                 </div>
                 ${buildStaffingGridHTML(idx, 'm-calendar-grid')}
             </div>
