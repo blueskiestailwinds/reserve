@@ -138,9 +138,24 @@
             font-size: 1.1rem;
         }
 
-        #m-swipe-viewport {
+        #m-palette-bar {
             position: fixed;
             top: 56px;
+            left: 0;
+            right: 0;
+            z-index: 99;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 12px;
+        }
+
+        #m-palette-bar .m-palette-row {
+            margin-bottom: 0;
+        }
+
+        #m-swipe-viewport {
+            position: fixed;
+            top: 56px; /* overridden by JS after palette bar is measured */
             left: 0;
             right: 0;
             bottom: var(--sheet-peek);
@@ -170,14 +185,6 @@
             transform-origin: center;
         }
 
-        .m-cal-title {
-            font-size: 1rem;
-            font-weight: 700;
-            text-align: center;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
 
         #m-sheet-status {
             font-size: 0.78rem;
@@ -331,6 +338,20 @@
             </div>
         </div>
 
+        <div id="m-palette-bar">
+            <div class="m-palette-row">
+                <button class="m-settings-btn" onclick="openSheet()">☰</button>
+                <div class="m-palette">
+                    <div class="brush R" data-brush="R" onclick="setBrush('R')">R</div>
+                    <div class="brush X" data-brush="X" onclick="setBrush('X')">X</div>
+                    <div class="brush A" data-brush="A" onclick="setBrush('A')">A</div>
+                    <div class="brush C" data-brush="C" onclick="setBrush('C')">C</div>
+                    <div class="brush CQ" data-brush="CQ" onclick="setBrush('CQ')">CQ</div>
+                    <div class="brush CI" data-brush="CI" onclick="setBrush('CI')">CI</div>
+                </div>
+            </div>
+        </div>
+
         <div id="m-swipe-viewport">
             <div id="m-swipe-track">
                 <div class="m-panel side-panel" id="m-panel-prev"></div>
@@ -432,10 +453,9 @@
            DEVICE DETECTION
         ═══════════════════════════════════════════════════════════════ */
         function isMobileDevice() {
-            const touch = navigator.maxTouchPoints > 1;
             const narrow = window.innerWidth <= 768;
             const ua = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-            return (touch && narrow) || ua;
+            return narrow || ua;
         }
 
         let usingMobile = isMobileDevice();
@@ -449,6 +469,11 @@
                 document.body.style.overflow = 'hidden';
                 document.body.style.height = '100%';
                 document.documentElement.style.height = '100%';
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    const bar = document.getElementById('m-palette-bar');
+                    const vp = document.getElementById('m-swipe-viewport');
+                    if (bar && vp) vp.style.top = (56 + bar.offsetHeight) + 'px';
+                }));
             } else {
                 dRoot.classList.add('active');
                 mRoot.classList.remove('active');
@@ -919,17 +944,6 @@
         function renderMobilePanel(containerId, idx, isSide, availCount, xUsed, xReq, xBlks, alerts) {
             const container = document.getElementById(containerId);
             if (idx < 0 || idx >= BID_MONTHS.length) { container.innerHTML = ''; return; }
-            const m = BID_MONTHS[idx];
-
-            const palette = isSide ? '' : `
-        <div class="m-palette-row">
-            <button class="m-settings-btn" onclick="openSheet()">☰</button>
-            <div class="m-palette">
-                ${['R', 'X', 'A', 'C', 'CQ', 'CI'].map(b =>
-                `<div class="brush ${b}${b === activeBrush ? ' active' : ''}" data-brush="${b}">${b}</div>`
-            ).join('')}
-            </div>
-        </div>`;
 
             const status = (!isSide && availCount !== undefined) ? `
         <div id="m-status-strip">
@@ -942,9 +956,7 @@
         </div>` : '';
 
             container.innerHTML = `
-        ${palette}
         <div class="m-cal-card">
-            <div class="m-cal-title">${m.name}</div>
             ${buildGridHTML(idx, isSide, 'm-calendar-grid')}
         </div>
         ${status}`;
