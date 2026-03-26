@@ -26,7 +26,7 @@
             --border: #333537;
             --text-main: #e3e3e3;
             --text-muted: #94a3b8;
-            --sheet-peek: 72px;
+            --sheet-peek: 0px;
 
             /* Change indicators */
             --add-green: #16a34a;
@@ -1363,10 +1363,10 @@
 
         .home-link-d {
             display: inline-block;
-            font-size: 0.95rem;
+            font-size: 1.6rem;
             color: var(--text-muted);
             text-decoration: none;
-            margin-bottom: 12px;
+            margin-left: 10px;
         }
 
         .home-link-d:hover {
@@ -1467,6 +1467,13 @@
             display: block;
         }
 
+        .m-palette-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
         .m-palette {
             display: flex;
             gap: 8px;
@@ -1475,13 +1482,42 @@
             padding: 10px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            margin-bottom: 12px;
+            flex: 1;
         }
 
         .m-palette .brush {
             width: 42px;
             height: 42px;
             font-size: 12px;
+        }
+
+        .m-settings-btn {
+            flex-shrink: 0;
+            width: 42px;
+            height: 42px;
+            background: #2b2c2d;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .m-settings-btn:active {
+            background: #3a3b3c;
+        }
+
+        .m-toolbar-label {
+            flex: 1;
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.3px;
         }
 
         .m-cal-card {
@@ -1692,6 +1728,10 @@
             font-size: 0.7rem;
             color: var(--text-muted);
             white-space: nowrap;
+        }
+
+        #m-sheet-peek-content {
+            display: none;
         }
 
         #m-sheet-body {
@@ -2378,8 +2418,6 @@
                 </div>
 
                 <div class="card">
-                    <button class="btn" onclick="copyCurrentToDesired(); closeDesktopSidebar();">⬇ Copy Current →
-                        Desired</button>
                     <button class="btn" onclick="clearDesired(); closeDesktopSidebar();">🗑 Clear Desired</button>
                     <button class="btn" onclick="exportData(); closeDesktopSidebar();">💾 Export</button>
                     <button class="btn" onclick="document.getElementById('d-importFile').click()">📂 Import</button>
@@ -2389,7 +2427,6 @@
 
             </div>
         </div>
-        <a class="home-link-d" href="/" style="padding: 12px 16px 0;">← Home</a>
         <div class="d-layout">
 
             <!-- Main content -->
@@ -2397,12 +2434,14 @@
 
                 <!-- Month nav -->
                 <div class="d-month-nav-bar">
-                    <div class="d-nav-btn" id="d-btn-prev" onclick="navigate(-1)">&#8249;</div>
-                    <div class="d-month-title" id="d-month-title">Loading…</div>
-                    <div class="d-nav-btn" id="d-btn-next" onclick="navigate(1)">&#8250;</div>
+                    <a class="home-link-d" href="/" style="flex:1">🏠</a>
+                    <div style="display:flex;align-items:center;gap:16px">
+                        <div class="d-nav-btn" id="d-btn-prev" onclick="navigate(-1)">&#8249;</div>
+                        <div class="d-month-title" id="d-month-title">Loading…</div>
+                        <div class="d-nav-btn" id="d-btn-next" onclick="navigate(1)">&#8250;</div>
+                    </div>
+                    <div style="flex:1"></div>
                 </div>
-
-                <!-- Toolbar: palette + analyze button -->
                 <div class="d-toolbar">
                     <button class="d-controls-btn" id="d-controls-btn" type="button" aria-expanded="false"
                         aria-controls="d-sidebar-drawer" onclick="toggleDesktopSidebar()">
@@ -2439,6 +2478,7 @@
                         <div class="d-cal-panel-header">
                             <span class="d-cal-panel-badge badge-desired">DESIRED</span>
                             <span class="d-cal-panel-title" id="d-desired-panel-title">Loading…</span>
+                            <button class="btn-import-pbs" onclick="copyCurrentToDesired()">Copy from Current</button>
                         </div>
                         <div id="d-desired-grid"></div>
                         <div class="d-cal-panel-footer">
@@ -2520,8 +2560,6 @@
                 </div>
                 <div class="m-sheet-section">
                     <h3>Actions</h3>
-                    <button class="btn" onclick="copyCurrentToDesired(); closeSheet();">⬇ Copy Current →
-                        Desired</button>
                     <button class="btn" onclick="clearDesired(); closeSheet();">🗑 Clear Desired</button>
                     <button class="btn" onclick="exportData()">💾 Export</button>
                     <button class="btn" onclick="document.getElementById('m-importFile').click()">📂 Import</button>
@@ -2730,7 +2768,7 @@
             const mTab = document.getElementById('m-tab-changes');
             if (mTab) {
                 const card = mTab.querySelector('.m-changes-card');
-                if (card) card.innerHTML = `<button class="btn m-run-analysis-btn" onclick="runPCSAnalysis()" style="margin-top:0;background:#1a2744;color:#93c5fd;border-color:#2563eb">🔍 Run PCS Analysis</button>`;
+                if (card) card.innerHTML = `<div class="pcs-stale-msg">Schedule changed — tap <b>Run PCS Analysis</b> to update.</div>`;
             }
             const btn = document.getElementById('d-analyze-btn');
             if (btn) btn.classList.add('stale');
@@ -3502,16 +3540,35 @@
             if (idx < 0 || idx >= BID_MONTHS.length) { container.innerHTML = ''; return; }
             const m = BID_MONTHS[idx];
 
-            // palette
-            const palette = `
-        <div class="m-palette">
-            ${['R', 'X', 'A', 'CQ', 'CI', 'IVD'].map(b =>
+            // per-tab toolbars
+            const toolbars = `
+        <div id="m-toolbar-current" class="m-palette-row" style="display:${activeMobileTab === 'current' ? 'flex' : 'none'}">
+            <button class="m-settings-btn" onclick="openSheet()">☰</button>
+            <div class="m-palette">
+                ${['R', 'X', 'A', 'CQ', 'CI', 'IVD'].map(b =>
                 `<div class="brush ${b}${b === activeBrush ? ' active' : ''}" data-brush="${b}">${b}</div>`
             ).join('')}
+            </div>
+        </div>
+        <div id="m-toolbar-desired" class="m-palette-row" style="display:${activeMobileTab === 'desired' ? 'flex' : 'none'}">
+            <button class="m-settings-btn" onclick="openSheet()">☰</button>
+            <div class="m-palette">
+                ${['R', 'X', 'A', 'CQ', 'IVD'].map(b =>
+                `<div class="brush ${b}${b === activeBrush ? ' active' : ''}" data-brush="${b}">${b}</div>`
+            ).join('')}
+            </div>
+        </div>
+        <div id="m-toolbar-staffing" class="m-palette-row" style="display:${activeMobileTab === 'staffing' ? 'flex' : 'none'}">
+            <button class="m-settings-btn" onclick="openSheet()">☰</button>
+            <span class="m-toolbar-label">Tap days to toggle coverage.<br>Blue = Res Avail ≥ Res Req.<br>Black = Res Avail < Res Req.</span>
+        </div>
+        <div id="m-toolbar-changes" class="m-palette-row" style="display:${activeMobileTab === 'changes' ? 'flex' : 'none'}">
+            <button class="m-settings-btn" onclick="openSheet()">☰</button>
+            <button class="btn m-run-analysis-btn" onclick="runPCSAnalysis()" style="flex:1;margin:0;background:#1a2744;color:#93c5fd;border-color:#2563eb">🔍 Run PCS Analysis</button>
         </div>`;
 
             const pcsHTML = pcsIsStale
-                ? `<button class="btn m-run-analysis-btn" onclick="runPCSAnalysis()" style="margin-top:0;background:#1a2744;color:#93c5fd;border-color:#2563eb">🔍 Run PCS Analysis</button>`
+                ? `<div class="pcs-stale-msg">Schedule changed — tap <b>Run PCS Analysis</b> to update.</div>`
                 : buildMobilePCSHTML(idx);
 
             const currArr = monthData[idx].current || [];
@@ -3528,7 +3585,7 @@
             const desXColor = mismatch ? 'var(--error)' : 'var(--x-green)';
 
             container.innerHTML = `
-        ${palette}
+        ${toolbars}
         <div id="m-tab-current" class="m-cal-tabs-content ${activeMobileTab === 'current' ? 'active' : ''}">
             <div class="m-cal-card">
                 <div class="m-cal-header">
@@ -3548,6 +3605,7 @@
                 <div class="m-cal-header">
                     <span class="m-cal-badge badge-desired">DESIRED</span>
                     <span class="m-cal-title">${m.name}</span>
+                    <button class="btn-import-pbs" onclick="copyCurrentToDesired()">Copy from Current</button>
                 </div>
                 ${buildCalendarGridHTML(idx, 'desired', 'm-calendar-grid')}
                 <div class="d-cal-panel-footer" style="margin-top:8px;padding-top:8px">
@@ -3636,10 +3694,12 @@
             document.querySelectorAll('.m-tab').forEach(el => {
                 el.classList.toggle('active-tab', el.dataset.tab === tab);
             });
-            // Show/hide content
+            // Show/hide content and toolbars
             ['current', 'desired', 'staffing', 'changes'].forEach(t => {
                 const el = document.getElementById(`m-tab-${t}`);
                 if (el) el.classList.toggle('active', t === tab);
+                const toolbar = document.getElementById(`m-toolbar-${t}`);
+                if (toolbar) toolbar.style.display = t === tab ? 'flex' : 'none';
             });
         }
 
@@ -4215,6 +4275,7 @@
             }
             handle.addEventListener('click', () => { open = !open; sheet.classList.toggle('expanded', open); });
             sheet.addEventListener('touchstart', e => {
+                open = sheet.classList.contains('expanded');
                 startY = e.touches[0].clientY; startT = Date.now(); dragging = false;
                 baseT = open ? 0 : maxT(); locked = body.contains(e.target) && body.scrollTop > 0;
             }, { passive: true });
@@ -4235,6 +4296,10 @@
                 open = vel > 0.5 ? dy < 0 : (baseT + dy) < maxT() * 0.45;
                 sheet.classList.toggle('expanded', open);
             }, { passive: true });
+        }
+
+        function openSheet() {
+            document.getElementById('m-bottom-sheet').classList.add('expanded');
         }
 
         function closeSheet() {
