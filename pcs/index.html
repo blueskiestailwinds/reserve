@@ -1891,6 +1891,12 @@
                         accept=".json,.html,.htm">
                 </div>
 
+                <div class="card">
+                    <h3 style="margin:0 0 8px">Account</h3>
+                    <label style="font-size:0.8rem;color:var(--text-muted)">Sign in to sync across devices.</label>
+                    <div id="d-auth-content"></div>
+                </div>
+
             </div>
         </div>
         <div class="d-layout">
@@ -1900,7 +1906,7 @@
 
                 <!-- Month nav -->
                 <div class="d-month-nav-bar">
-                    <a class="home-link-d" href="/" style="flex:1">🏠</a>
+                    <a class="home-link-d" href="../" style="flex:1">🏠</a>
                     <div style="display:flex;align-items:center;gap:16px">
                         <div class="d-nav-btn" id="d-btn-prev" onclick="navigate(-1)">&#8249;</div>
                         <div class="d-month-title" id="d-month-title">Loading…</div>
@@ -1982,7 +1988,7 @@
 ═══════════════════════════════════════════════════════════ -->
     <div id="mobile-root">
         <div id="m-top-bar">
-            <a class="home-btn" href="/" aria-label="Home">🏠</a>
+            <a class="home-btn" href="../" aria-label="Home">🏠</a>
             <div class="m-month-nav">
                 <div class="m-nav-btn" id="m-btn-prev">&#8249;</div>
                 <div id="m-month-title">Loading…</div>
@@ -2031,6 +2037,10 @@
                     <button class="btn" onclick="document.getElementById('m-importFile').click()">📂 Import</button>
                     <input type="file" id="m-importFile" style="display:none" onchange="importData(event)"
                         accept=".json,.html,.htm">
+                </div>
+                <div class="m-sheet-section">
+                    <h3>Account</h3>
+                    <div id="m-auth-content"></div>
                 </div>
             </div>
         </div>
@@ -4527,9 +4537,52 @@
         const SUPABASE_ANON_KEY = 'sb_publishable_-wiDJ-bZPss16vIOL_HLrA_L5SJfuyH';
         const _supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // Register auth listener immediately so no events are missed.
+        _supa.auth.onAuthStateChange(async (event, session) => {
+            _session = session;
+            renderAuthUI();
+        });
+
+        function renderAuthUI() {
+            const loggedIn = !!_session;
+            const dContent = loggedIn
+                ? `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;word-break:break-all">${_session.user.email}</div>
+                   <button class="btn" onclick="signOut()">Sign Out</button>`
+                : `<input type="email" id="d-auth-email" placeholder="your@email.com"
+                       style="width:100%;margin-bottom:8px;padding:8px;border-radius:6px">
+                   <button class="btn" onclick="sendMagicLink('d')">Send Magic Link</button>
+                   <div id="d-auth-msg" style="margin-top:8px;font-size:0.8rem;color:var(--text-muted)"></div>`;
+            const mContent = loggedIn
+                ? `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;word-break:break-all">${_session.user.email}</div>
+                   <button class="btn" onclick="signOut()">Sign Out</button>`
+                : `<input type="email" id="m-auth-email" placeholder="your@email.com"
+                       style="width:100%;margin-bottom:8px;padding:8px;border-radius:6px">
+                   <button class="btn" onclick="sendMagicLink('m')">Send Magic Link</button>
+                   <div id="m-auth-msg" style="margin-top:8px;font-size:0.8rem;color:var(--text-muted)"></div>`;
+            const dEl = document.getElementById('d-auth-content');
+            const mEl = document.getElementById('m-auth-content');
+            if (dEl) dEl.innerHTML = dContent;
+            if (mEl) mEl.innerHTML = mContent;
+        }
+
+        async function sendMagicLink(prefix) {
+            const emailEl = document.getElementById(prefix + '-auth-email');
+            const msgEl = document.getElementById(prefix + '-auth-msg');
+            const email = emailEl ? emailEl.value.trim() : '';
+            if (!email) { if (msgEl) msgEl.textContent = 'Enter an email address.'; return; }
+            if (msgEl) msgEl.textContent = 'Sending…';
+            const { error } = await _supa.auth.signInWithOtp({ email });
+            if (msgEl) msgEl.textContent = error ? 'Error: ' + error.message : 'Magic link sent! Check your email.';
+        }
+
+        async function signOut() {
+            await _supa.auth.signOut();
+        }
+
         async function start() {
             const { data: { session } } = await _supa.auth.getSession();
             _session = session;
+            renderAuthUI();
             try {
                 await init();
             } catch (err) {

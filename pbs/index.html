@@ -236,7 +236,7 @@
     <div id="desktop-root">
         <div class="d-layout">
             <div class="d-sidebar">
-                <a class="home-link-d" href="/">🏠</a>
+                <a class="home-link-d" href="../">🏠</a>
                 <div class="card" style="padding:0">
                     <div class="d-sidebar-section">
                         <h3>Bid Period</h3>
@@ -271,17 +271,17 @@
                     </div>
                     <hr class="d-sidebar-divider">
                     <div class="d-sidebar-section">
-                        <h3>Account</h3>
-                        <label style="font-size:0.8rem;color:var(--text-muted)">Sign in to sync across devices.</label>
-                        <div id="d-auth-content"></div>
-                    </div>
-                    <hr class="d-sidebar-divider">
-                    <div class="d-sidebar-section">
                         <button class="btn" onclick="exportData()">💾 Export Patterns</button>
                         <button class="btn" onclick="document.getElementById('d-importFile').click()">📂 Import
                             Patterns</button>
                         <input type="file" id="d-importFile" style="display:none" onchange="importData(event)"
                             accept=".json">
+                    </div>
+                    <hr class="d-sidebar-divider">
+                    <div class="d-sidebar-section">
+                        <h3>Account</h3>
+                        <label style="font-size:0.8rem;color:var(--text-muted)">Sign in to sync across devices.</label>
+                        <div id="d-auth-content"></div>
                     </div>
                 </div>
 
@@ -330,7 +330,7 @@
 ═══════════════════════════════════════════════════════════ -->
     <div id="mobile-root">
         <div id="m-top-bar">
-            <a class="home-btn" href="/" aria-label="Home">🏠</a>
+            <a class="home-btn" href="../" aria-label="Home">🏠</a>
             <div class="m-month-nav">
                 <div class="m-nav-btn" id="m-btn-prev">&#8249;</div>
                 <div id="m-month-title">Loading…</div>
@@ -392,10 +392,6 @@
                             onchange="onSettingsChange()"></div>
                 </div>
                 <div class="m-sheet-section">
-                    <h3>Account</h3>
-                    <div id="m-auth-content"></div>
-                </div>
-                <div class="m-sheet-section">
                     <h3>Data</h3>
                     <button class="btn" onclick="exportData()">💾 Export Patterns</button>
                     <button class="btn" onclick="document.getElementById('m-importFile').click()">📂 Import
@@ -413,6 +409,10 @@
                         <div>• Availability determines X-day req. via 12.M.2 table.</div>
                         <div>• Absence can be any leave.</div>
                     </div>
+                </div>
+                <div class="m-sheet-section">
+                    <h3>Account</h3>
+                    <div id="m-auth-content"></div>
                 </div>
             </div>
         </div>
