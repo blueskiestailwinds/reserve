@@ -221,7 +221,7 @@
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 8px;
             position: sticky;
             top: 20px;
         }
@@ -314,12 +314,22 @@
             height: 44px;
         }
 
+        .d-sidebar-section {
+            padding: 12px 16px;
+        }
+
+        .d-sidebar-divider {
+            margin: 0;
+            border: none;
+            border-top: 6px solid var(--border);
+        }
+
         .d-stat-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border);
+            padding: 2px 0;
+            /* border-bottom: 1px solid var(--border); */
             font-size: 0.9rem;
             gap: 12px;
         }
@@ -692,9 +702,9 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 0;
+            padding: 3px 0;
             font-size: 0.9rem;
-            gap: 10px;
+            gap: 2px;
         }
 
         .m-setting-row span {
@@ -746,47 +756,52 @@
         <div class="d-layout">
             <div class="d-sidebar">
                 <a class="home-link-d" href="/">🏠</a>
-                <div class="card">
-                    <h3>Bid Period</h3>
-                    <select id="d-month-selector" onchange="changeFocusMonth(parseInt(this.value))"
-                        style="width:100%;margin-top:10px;"></select>
-                    <div class="d-stat-row">
-                        <span>Reserve Guarantee:</span>
-                        <select id="d-alv-cat" oninput="onSettingsChange()" style="width:120px">
-                            <option value="cat1">72:00 - 74:59</option>
-                            <option value="cat2">75:00 - 80:00</option>
-                        </select>
+                <div class="card" style="padding:0">
+                    <div class="d-sidebar-section">
+                        <h3>Bid Period</h3>
+                        <select id="d-month-selector" onchange="changeFocusMonth(parseInt(this.value))"
+                            style="width:100%;margin-top:8px;"></select>
+                        <div class="d-stat-row">
+                            <span>Reserve Guarantee:</span>
+                            <select id="d-alv-cat" oninput="onSettingsChange()" style="width:120px">
+                                <option value="cat1">72:00 - 74:59</option>
+                                <option value="cat2">75:00 - 80:00</option>
+                            </select>
+                        </div>
+                        <div class="d-stat-row"><span>Min Work:</span><input type="number" id="d-cfg-min-w"
+                                class="d-num-input" value="4" oninput="onSettingsChange()"></div>
+                        <div class="d-stat-row"><span>Max Work:</span><input type="number" id="d-cfg-max-w"
+                                class="d-num-input" value="99" oninput="onSettingsChange()"></div>
+                        <div class="d-stat-row"><span>Max X Blks:</span><input type="number" id="d-cfg-max-x-blks"
+                                class="d-num-input" value="4" oninput="onSettingsChange()"></div>
+                        <div style="margin-top:8px;font-size:0.85rem;">
+                            <input type="checkbox" id="d-extra-x" onchange="onSettingsChange()">
+                            <label for="d-extra-x">Extra X Day</label>
+                        </div>
                     </div>
-                    <div class="d-stat-row"><span>Min Work:</span><input type="number" id="d-cfg-min-w"
-                            class="d-num-input" value="4" oninput="onSettingsChange()"></div>
-                    <div class="d-stat-row"><span>Max Work:</span><input type="number" id="d-cfg-max-w"
-                            class="d-num-input" value="99" oninput="onSettingsChange()"></div>
-                    <div class="d-stat-row"><span>Max X Blks:</span><input type="number" id="d-cfg-max-x-blks"
-                            class="d-num-input" value="4" oninput="onSettingsChange()"></div>
-                    <div style="margin-top:10px;font-size:0.85rem;">
-                        <input type="checkbox" id="d-extra-x" onchange="onSettingsChange()">
-                        <label for="d-extra-x">Extra X Day</label>
+                    <hr class="d-sidebar-divider">
+                    <div class="d-sidebar-section">
+                        <div class="d-stat-row"><span>Avail Days:</span> <b id="d-stat-avail">0</b></div>
+                        <div class="d-stat-row"><span>X Used/Req:</span> <span><b id="d-stat-x-used">0</b> / <b
+                                    id="d-stat-x-req">0</b></span></div>
+                        <label style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">* Based on 12.M.2
+                            table</label>
+                        <div class="d-stat-row"><span>X Blocks:</span> <b id="d-stat-x-blks">0</b></div>
                     </div>
-                </div>
-                <div class="card">
-                    <div class="d-stat-row"><span>Avail Days:</span> <b id="d-stat-avail">0</b></div>
-                    <div class="d-stat-row"><span>X Used/Req:</span> <span><b id="d-stat-x-used">0</b> / <b
-                                id="d-stat-x-req">0</b></span></div>
-                    <div class="d-stat-row"><span>X Blocks:</span> <b id="d-stat-x-blks">0</b></div>
-                </div>
-                <div id="d-alerts"></div>
-                <div class="card">
-                    <h3>Account</h3>
-                    <label>I won't email you. Signing in allows you to access saved schedules across
-                        devices.</label>
-                    <div id="d-auth-content"></div>
-                </div>
-                <div class="card">
-                    <button class="btn" onclick="exportData()">💾 Export Patterns</button>
-                    <button class="btn" onclick="document.getElementById('d-importFile').click()">📂 Import
-                        Patterns</button>
-                    <input type="file" id="d-importFile" style="display:none" onchange="importData(event)"
-                        accept=".json">
+                    <hr class="d-sidebar-divider">
+                    <div class="d-sidebar-section">
+                        <h3>Account</h3>
+                        <label style="font-size:0.8rem;color:var(--text-muted)">Sign in to sync across devices.</label>
+                        <div id="d-auth-content"></div>
+                    </div>
+                    <hr class="d-sidebar-divider">
+                    <div class="d-sidebar-section">
+                        <button class="btn" onclick="exportData()">💾 Export Patterns</button>
+                        <button class="btn" onclick="document.getElementById('d-importFile').click()">📂 Import
+                            Patterns</button>
+                        <input type="file" id="d-importFile" style="display:none" onchange="importData(event)"
+                            accept=".json">
+                    </div>
                 </div>
 
             </div>
@@ -807,6 +822,7 @@
                     <div id="d-next-container" class="d-calendar-card side-month"
                         onclick="changeFocusMonth(currentIdx+1)"></div>
                 </div>
+                <div id="d-alerts"></div>
                 <div class="card">
                     <h3>Legend & Notes</h3>
                     <div class="d-legend-grid">
