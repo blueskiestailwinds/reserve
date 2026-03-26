@@ -284,12 +284,6 @@
             color: white;
         }
 
-        .d-cal-panel-title {
-            font-size: 1rem;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-        }
-
 
 
 
@@ -1295,7 +1289,6 @@
                     <div class="d-cal-panel current-panel" id="d-current-panel">
                         <div class="d-cal-panel-header">
                             <span class="d-cal-panel-badge badge-current">CURRENT</span>
-                            <span class="d-cal-panel-title" id="d-current-panel-title">Loading…</span>
                             <button class="btn-import-pbs" onclick="importFromPBS()">Import from PBS Planner</button>
                         </div>
                         <div id="d-current-grid"></div>
@@ -1307,7 +1300,6 @@
                     <div class="d-cal-panel desired-panel" id="d-desired-panel">
                         <div class="d-cal-panel-header">
                             <span class="d-cal-panel-badge badge-desired">DESIRED</span>
-                            <span class="d-cal-panel-title" id="d-desired-panel-title">Loading…</span>
                             <button class="btn-import-pbs" onclick="copyCurrentToDesired()">Copy from Current</button>
                         </div>
                         <div id="d-desired-grid"></div>
@@ -1319,7 +1311,6 @@
                     <div class="d-cal-panel staffing-panel" id="d-staffing-panel">
                         <div class="d-cal-panel-header">
                             <span class="d-cal-panel-badge badge-staffing">RESERVE LEVELS</span>
-                            <span class="d-cal-panel-title" id="d-staffing-panel-title">Loading…</span>
                         </div>
                         <div id="d-staffing-grid"></div>
                         <div class="d-cal-panel-footer" aria-hidden="true" style="visibility:hidden">
@@ -2101,8 +2092,6 @@
 
             document.getElementById('d-month-title').innerText = name;
             document.getElementById('m-month-title').innerText = name;
-            document.getElementById('d-current-panel-title').innerText = name;
-            document.getElementById('d-desired-panel-title').innerText = name;
 
             // Hide arrows at the bounds
             ['d-btn-prev', 'm-btn-prev'].forEach(id => {
@@ -2329,7 +2318,6 @@
                 buildCalendarGridHTML(currentIdx, 'desired', 'd-calendar-grid');
             document.getElementById('d-staffing-grid').innerHTML =
                 buildStaffingGridHTML(currentIdx, 'd-calendar-grid');
-            document.getElementById('d-staffing-panel-title').textContent = BID_MONTHS[currentIdx].name;
         }
 
 
