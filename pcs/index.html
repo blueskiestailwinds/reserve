@@ -11,6 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
     <link rel="stylesheet" href="../shared.css">
+    <script src="../shared.js"></script>
     <style>
         /* PCS-specific CSS variables */
         :root {
@@ -1401,11 +1402,6 @@
         /* ═══════════════════════════════════════════════════════════════
            DEVICE DETECTION
         ═══════════════════════════════════════════════════════════════ */
-        function isMobileDevice() {
-            const narrow = window.innerWidth <= 768;
-            const ua = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-            return narrow || ua;
-        }
 
         let usingMobile = isMobileDevice();
         let activeMobileTab = 'current'; // 'current' | 'desired' | 'changes'
@@ -2123,11 +2119,6 @@
         /* ═══════════════════════════════════════════════════════════════
            BRUSH & TARGET
         ═══════════════════════════════════════════════════════════════ */
-        function setBrush(b) {
-            activeBrush = b;
-            document.querySelectorAll('.brush').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll(`.brush[data-brush="${b}"]`).forEach(el => el.classList.add('active'));
-        }
 
         const FIXED_CURRENT_CODES = new Set(['A', 'CQ', 'CI']);
 
