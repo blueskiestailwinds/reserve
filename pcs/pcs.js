@@ -1,0 +1,2533 @@
+/* ═══════════════════════════════════════════════════════════════
+   DEVICE DETECTION
+═══════════════════════════════════════════════════════════════ */
+
+let usingMobile = isMobileDevice();
+let activeMobileTab = 'current'; // 'current' | 'desired' | 'changes'
+let desktopSidebarOpen = false;
+
+function setDesktopSidebarOpen(open) {
+    desktopSidebarOpen = !!open && !usingMobile;
+    document.body.classList.toggle('desktop-sidebar-open', desktopSidebarOpen);
+
+    const drawer = document.getElementById('d-sidebar-drawer');
+    const btn = document.getElementById('d-controls-btn');
+    if (drawer) drawer.setAttribute('aria-hidden', desktopSidebarOpen ? 'false' : 'true');
+    if (btn) btn.setAttribute('aria-expanded', desktopSidebarOpen ? 'true' : 'false');
+}
+
+function toggleDesktopSidebar() {
+    setDesktopSidebarOpen(!desktopSidebarOpen);
+}
+
+function closeDesktopSidebar() {
+    setDesktopSidebarOpen(false);
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && desktopSidebarOpen) {
+        closeDesktopSidebar();
+    }
+});
+
+document.addEventListener('click', e => {
+    if (!desktopSidebarOpen) return;
+    const drawer = document.getElementById('d-sidebar-drawer');
+    const btn = document.getElementById('d-controls-btn');
+    if (drawer?.contains(e.target) || btn?.contains(e.target)) return;
+    closeDesktopSidebar();
+});
+
+function applyLayout() {
+    const mRoot = document.getElementById('mobile-root');
+    const dRoot = document.getElementById('desktop-root');
+    if (usingMobile) {
+        closeDesktopSidebar();
+        mRoot.classList.add('active');
+        dRoot.classList.remove('active');
+        document.body.style.overflow = 'hidden';
+        document.body.style.height = '100%';
+        document.documentElement.style.height = '100%';
+    } else {
+        dRoot.classList.add('active');
+        mRoot.classList.remove('active');
+        document.body.style.overflow = '';
+        document.body.style.height = '';
+        document.documentElement.style.height = '';
+        setDesktopSidebarOpen(false);
+    }
+}
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        const wasMobile = usingMobile;
+        usingMobile = isMobileDevice();
+        if (wasMobile !== usingMobile) {
+            applyLayout();
+            syncUI();
+            renderAll();
+            if (usingMobile) { initBottomSheet(); }
+        }
+    }, 150);
+});
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════════════════════ */
+function stampFirstMovableIdx(months) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight local
+    // 2200 ET cutoff: once past 2200 ET, the D+4 day locks and the window shifts to D+5.
+    const etHour = parseInt(now.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'America/New_York' }), 10);
+    const movableDayOffset = etHour >= 22 ? 5 : 4;
+    months.forEach(m => {
+        const todayOffset = Math.round((today - m.start) / 86400000);
+        m.firstMovableIdx = Math.min(m.dayCount, Math.max(0, todayOffset + movableDayOffset));
+    });
+}
+
+function generateBidMonths() {
+    const months = [];
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight local
+    // 2200 ET cutoff: once past 2200 ET, the D+4 day locks and the window shifts to D+5.
+    const etHour = parseInt(now.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'America/New_York' }), 10);
+    const cutoffPassed = etHour >= 22;
+    const movableDayOffset = cutoffPassed ? 5 : 4;
+    const ref = new Date(now.getFullYear(), now.getMonth(), 1);
+    for (let i = 0; i < 2; i++) {
+        const date = new Date(ref.getFullYear(), ref.getMonth() + i, 1);
+        const y = date.getFullYear(), mIdx = date.getMonth();
+        let start, end, name;
+        if (mIdx === 0) { start = new Date(y, 0, 1); end = new Date(y, 0, 30); name = "January"; }
+        else if (mIdx === 1) { start = new Date(y, 0, 31); end = new Date(y, 2, 1); name = "February"; }
+        else if (mIdx === 2) { start = new Date(y, 2, 2); end = new Date(y, 2, 31); name = "March"; }
+        else if (mIdx === 3) { start = new Date(y, 3, 1); end = new Date(y, 4, 1); name = "April"; }
+        else if (mIdx === 4) { start = new Date(y, 4, 2); end = new Date(y, 5, 1); name = "May"; }
+        else if (mIdx === 5) { start = new Date(y, 5, 2); end = new Date(y, 6, 1); name = "June"; }
+        else if (mIdx === 6) { start = new Date(y, 6, 2); end = new Date(y, 6, 31); name = "July"; }
+        else if (mIdx === 7) { start = new Date(y, 7, 1); end = new Date(y, 7, 30); name = "August"; }
+        else if (mIdx === 8) { start = new Date(y, 7, 31); end = new Date(y, 8, 30); name = "September"; }
+        else if (mIdx === 9) { start = new Date(y, 9, 1); end = new Date(y, 9, 31); name = "October"; }
+        else if (mIdx === 10) { start = new Date(y, 10, 1); end = new Date(y, 10, 30); name = "November"; }
+        else { start = new Date(y, 11, 1); end = new Date(y, 11, 31); name = "December"; }
+        const dayCount = Math.round((end - start) / 86400000) + 1;
+        // D+4 rule: deadline to move a day is 2200 ET four days before that day.
+        // todayOffset = how many days today is from m.start (can be negative if month is future).
+        const todayOffset = Math.round((today - start) / 86400000);
+        const firstMovableIdx = Math.min(dayCount, Math.max(0, todayOffset + movableDayOffset));
+        months.push({ name: `${name} ${y}`, start, end, dayCount, firstMovableIdx, id: `scp-${y}-${mIdx}` });
+    }
+    return months;
+}
+
+let BID_MONTHS = generateBidMonths();
+const STORE_KEY = "scp_v1";
+const ALLOWED_DAY_CODES = new Set(['X', 'R', 'A', 'CQ', 'CI', 'IVD']);
+
+function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function normalizeDayArray(arr, expectedDays, fallbackCode = 'X') {
+    if (!Array.isArray(arr) || arr.length !== expectedDays) {
+        return Array(expectedDays).fill(fallbackCode);
+    }
+    return arr.map(code => (typeof code === 'string' && ALLOWED_DAY_CODES.has(code)) ? code : fallbackCode);
+}
+
+function normalizeStaffingArray(arr, expectedDays) {
+    if (!Array.isArray(arr) || arr.length !== expectedDays) {
+        return Array(expectedDays).fill(true);
+    }
+    return arr.map(v => typeof v === 'boolean' ? v : true);
+}
+
+function readStoredJSON(key, fallbackValue) {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallbackValue;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed;
+        }
+    } catch (err) {
+        console.warn(`Storage parse failed for ${key}; resetting to defaults.`, err);
+    }
+
+    try {
+        localStorage.removeItem(key);
+    } catch (err) {
+        console.warn(`Failed to remove corrupted storage key ${key}.`, err);
+    }
+    return fallbackValue;
+}
+
+let currentIdx = 0;
+let activeBrush = 'X';
+let activeTarget = 'desired'; // 'current' | 'desired' — which calendar painting applies to
+
+// monthData[i] = { current: [...], desired: [...] }
+let monthData = {};
+
+// Painting state
+let _session = null;
+let _saveDebounce = null;
+let isPainting = false;
+let paintDirty = false;
+let sheetInited = false;
+let pcsRenderTimer = null;
+let pcsIsStale = true;
+let lockedTooltipTimer = null;
+let saveTimer = null;
+let hasPendingSave = false;
+
+function markPCSStale() {
+    pcsIsStale = true;
+    clearTimeout(pcsRenderTimer);
+    const el = document.getElementById('d-pcs-content');
+    if (el) el.innerHTML = `<div class="pcs-stale-msg">Schedule changed — click <b>Run PCS Analysis</b> to update.</div>`;
+    const mTab = document.getElementById('m-tab-changes');
+    if (mTab) {
+        const card = mTab.querySelector('.m-changes-card');
+        if (card) card.innerHTML = `<div class="pcs-stale-msg">Schedule changed — tap <b>Run PCS Analysis</b> to update.</div>`;
+    }
+    const btn = document.getElementById('d-analyze-btn');
+    if (btn) btn.classList.add('stale');
+}
+
+function runPCSAnalysis() {
+    try {
+        pcsIsStale = false;
+        renderPCSPanel();
+        const mTab = document.getElementById('m-tab-changes');
+        if (mTab) {
+            const card = mTab.querySelector('.m-changes-card');
+            if (card) card.innerHTML = buildMobilePCSHTML(currentIdx);
+        }
+        const btn = document.getElementById('d-analyze-btn');
+        if (btn) btn.classList.remove('stale');
+    } catch (err) {
+        console.error('PCS analysis failed', err);
+        pcsIsStale = true;
+        const el = document.getElementById('d-pcs-content');
+        if (el) {
+            el.innerHTML = `<div class="pcs-status-bar warning">
+    <span class="pcs-status-icon">⚠</span>
+    <span>PCS analysis hit an unexpected error. Try reloading the page.</span>
+</div>`;
+        }
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SUPABASE DATA LOADING
+═══════════════════════════════════════════════════════════════ */
+async function loadBidMonthsFromSupabase() {
+    try {
+        const { data, error } = await _supa
+            .from('month_instances')
+            .select('id, year, min_work, max_work, max_x_blocks, alv, extra_x, periods(name, start_month_number, start_day, end_month_number, end_day, day_count)');
+        if (error || !data || data.length === 0) return null;
+        const months = data.map(row => {
+            const p = row.periods;
+            const start = new Date(row.year, p.start_month_number - 1, p.start_day);
+            const end = new Date(row.year, p.end_month_number - 1, p.end_day);
+            return {
+                name: `${p.name} ${row.year}`,
+                start, end,
+                dayCount: p.day_count,
+                id: `mi-${row.id}`,
+                dbId: row.id,
+                dbSettings: {
+                    maxXblocks: row.max_x_blocks != null ? row.max_x_blocks : 4,
+                    minWork: row.min_work != null ? row.min_work : 4,
+                    maxWork: row.max_work != null ? row.max_work : 99,
+                }
+            };
+        });
+        months.sort((a, b) => a.start - b.start);
+        return months;
+    } catch (e) {
+        console.error('Supabase months load failed:', e);
+        return null;
+    }
+}
+
+function loadFromLocalStorage() {
+    const global = readStoredJSON(STORE_KEY, {});
+    BID_MONTHS.forEach((m, i) => {
+        const saved = global[m.id];
+        const base = saved || { current: Array(m.dayCount).fill('X'), desired: Array(m.dayCount).fill('X') };
+        monthData[i] = normalizeMonthData(base, m);
+    });
+}
+
+async function loadSchedulesFromSupabase() {
+    if (!_session) return;
+    try {
+        const { data, error } = await _supa
+            .from('pcs_schedules')
+            .select('month_id, current_days, desired_days, staffing')
+            .eq('user_id', _session.user.id);
+        if (error) throw error;
+        const schedMap = {};
+        (data || []).forEach(row => { schedMap[row.month_id] = row; });
+        BID_MONTHS.forEach((m, i) => {
+            const row = m.dbId ? schedMap[m.dbId] : null;
+            const base = row
+                ? { current: row.current_days, desired: row.desired_days, staffing: row.staffing }
+                : { current: Array(m.dayCount).fill('X'), desired: Array(m.dayCount).fill('X') };
+            monthData[i] = normalizeMonthData(base, m);
+        });
+    } catch (e) {
+        console.error('Supabase schedule load failed:', e);
+        loadFromLocalStorage();
+    }
+}
+
+function normalizeMonthData(raw, m) {
+    const current = normalizeDayArray(raw.current, m.dayCount, 'X');
+    const desiredBase = (Array.isArray(raw.desired) && raw.desired.length === m.dayCount)
+        ? raw.desired
+        : [...current];
+    return {
+        current,
+        desired: normalizeDayArray(desiredBase, m.dayCount, 'X'),
+        staffing: normalizeStaffingArray(raw.staffing, m.dayCount),
+    };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════ */
+async function init() {
+    loadSettings();
+
+    // 1. Try to load custom bid periods from Supabase (anon-readable).
+    const supaMonths = await loadBidMonthsFromSupabase();
+    if (supaMonths) {
+        stampFirstMovableIdx(supaMonths);
+        BID_MONTHS = supaMonths;
+    }
+
+    // 2. Load schedule data
+    if (_session) {
+        await loadSchedulesFromSupabase();
+    } else {
+        loadFromLocalStorage();
+    }
+
+    BID_MONTHS.forEach((m, i) => {
+        if (!monthData[i]) {
+            monthData[i] = normalizeMonthData(
+                { current: Array(m.dayCount).fill('X'), desired: Array(m.dayCount).fill('X') },
+                m
+            );
+        }
+    });
+
+    // Re-evaluate here so Chrome/Edge DevTools viewport metrics are applied
+    usingMobile = isMobileDevice();
+    // Default to current month
+    const today = new Date();
+    BID_MONTHS.forEach((m, i) => {
+        if (today >= m.start && today <= m.end) currentIdx = i;
+    });
+
+    applyLayout();
+    changeFocusMonth(currentIdx);
+    setBrush(activeBrush);
+    initDesktopMousePainting();
+    if (usingMobile) {
+        initBottomSheet();
+    }
+}
+
+function confirmConvertedEmployeeId(candidateId) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('ppr-confirm-overlay');
+        const number = document.getElementById('ppr-confirm-number');
+        const noBtn = document.getElementById('ppr-confirm-no-btn');
+        const yesBtn = document.getElementById('ppr-confirm-yes-btn');
+
+        if (!overlay || !number || !noBtn || !yesBtn) {
+            resolve(confirm(`Confirm 9-digit PPR is ${candidateId}?`));
+            return;
+        }
+
+        number.textContent = candidateId;
+        overlay.classList.add('visible');
+
+        const cleanup = () => {
+            overlay.classList.remove('visible');
+            noBtn.removeEventListener('click', onNo);
+            yesBtn.removeEventListener('click', onYes);
+            overlay.removeEventListener('click', onOverlayClick);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+
+        const closeWith = value => {
+            cleanup();
+            resolve(value);
+        };
+
+        const onNo = () => closeWith(false);
+        const onYes = () => closeWith(true);
+
+        const onOverlayClick = e => {
+            if (e.target === overlay) closeWith(false);
+        };
+
+        const onKeyDown = e => {
+            if (!overlay.classList.contains('visible')) return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeWith(false);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                closeWith(true);
+            }
+        };
+
+        noBtn.addEventListener('click', onNo);
+        yesBtn.addEventListener('click', onYes);
+        overlay.addEventListener('click', onOverlayClick);
+        document.addEventListener('keydown', onKeyDown);
+
+        setTimeout(() => yesBtn.focus(), 0);
+    });
+}
+
+function showImportNote(message, title = 'Import Note') {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('import-note-overlay');
+        const heading = document.getElementById('import-note-title');
+        const text = document.getElementById('import-note-text');
+        const okBtn = document.getElementById('import-note-ok-btn');
+
+        if (!overlay || !heading || !text || !okBtn) {
+            alert(message);
+            resolve();
+            return;
+        }
+
+        heading.textContent = title;
+        text.textContent = message;
+        overlay.classList.add('visible');
+
+        const cleanup = () => {
+            overlay.classList.remove('visible');
+            okBtn.removeEventListener('click', onOk);
+            overlay.removeEventListener('click', onOverlayClick);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+
+        const close = () => {
+            cleanup();
+            resolve();
+        };
+
+        const onOk = () => close();
+        const onOverlayClick = e => {
+            if (e.target === overlay) close();
+        };
+        const onKeyDown = e => {
+            if (!overlay.classList.contains('visible')) return;
+            if (e.key === 'Enter' || e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            }
+        };
+
+        okBtn.addEventListener('click', onOk);
+        overlay.addEventListener('click', onOverlayClick);
+        document.addEventListener('keydown', onKeyDown);
+        setTimeout(() => okBtn.focus(), 0);
+    });
+}
+
+function showNoReserveNotice(employeeId, bidPeriodLabel) {
+    const safeEmployeeId = String(employeeId || '').trim() || 'This employee';
+    const safeBidPeriod = String(bidPeriodLabel || '').trim() || 'this bid period';
+    return showImportNote(`${safeEmployeeId} appears to have a line for ${safeBidPeriod}.`);
+}
+
+function askForEmployeeId(fileName = '') {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('ppr-overlay');
+        const subtitle = document.getElementById('ppr-subtitle');
+        const input = document.getElementById('ppr-input');
+        const error = document.getElementById('ppr-error');
+        const cancelBtn = document.getElementById('ppr-cancel-btn');
+        const confirmBtn = document.getElementById('ppr-confirm-btn');
+
+        if (!overlay || !subtitle || !input || !error || !cancelBtn || !confirmBtn) {
+            const fallback = prompt('Enter 9 digit PPR:');
+            resolve(fallback ? fallback.trim() : null);
+            return;
+        }
+
+        const safeName = fileName || 'selected file';
+        subtitle.textContent = `Enter your 9-digit PPR number for ${safeName}.`;
+        input.value = '';
+        error.textContent = '';
+        overlay.classList.add('visible');
+
+        const cleanup = () => {
+            overlay.classList.remove('visible');
+            cancelBtn.removeEventListener('click', onCancel);
+            confirmBtn.removeEventListener('click', onConfirm);
+            overlay.removeEventListener('click', onOverlayClick);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+
+        const closeWith = value => {
+            cleanup();
+            resolve(value);
+        };
+
+        const onCancel = () => closeWith(null);
+
+        const onConfirm = async () => {
+            const value = input.value.trim();
+
+            if (/^\d{9}$/.test(value)) {
+                closeWith(value);
+                return;
+            }
+
+            if (/^\d{6}$/.test(value)) {
+                const candidate = `0${value}00`;
+                const accepted = await confirmConvertedEmployeeId(candidate);
+                if (accepted) {
+                    closeWith(candidate);
+                    return;
+                }
+                error.textContent = 'Please confirm the converted value or enter your full 9-digit PPR.';
+                input.focus();
+                input.select();
+                return;
+            }
+
+            error.textContent = 'Please enter exactly 9 digits.';
+            input.focus();
+            input.select();
+        };
+
+        const onOverlayClick = e => {
+            if (e.target === overlay) closeWith(null);
+        };
+
+        const onKeyDown = e => {
+            if (!overlay.classList.contains('visible')) return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeWith(null);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                onConfirm();
+            }
+        };
+
+        cancelBtn.addEventListener('click', onCancel);
+        confirmBtn.addEventListener('click', onConfirm);
+        overlay.addEventListener('click', onOverlayClick);
+        document.addEventListener('keydown', onKeyDown);
+
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 0);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SAVE
+═══════════════════════════════════════════════════════════════ */
+function writeSaveSnapshot() {
+    const out = {};
+    BID_MONTHS.forEach((m, i) => { out[m.id] = monthData[i]; });
+    localStorage.setItem(STORE_KEY, JSON.stringify(out));
+
+    // Debounced upsert to Supabase — avoids a round-trip on every paint pixel
+    if (_session) {
+        clearTimeout(_saveDebounce);
+        _saveDebounce = setTimeout(() => {
+            const m = BID_MONTHS[currentIdx];
+            if (!m || !m.dbId) return;
+            _supa.from('pcs_schedules').upsert({
+                user_id: _session.user.id,
+                month_id: m.dbId,
+                current_days: monthData[currentIdx].current,
+                desired_days: monthData[currentIdx].desired,
+                staffing: monthData[currentIdx].staffing,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id,month_id' }).then(({ error }) => {
+                if (error) console.error('Supabase PCS save error:', error);
+            });
+        }, 1500);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   IMPORT FROM PBS PLANNER
+═══════════════════════════════════════════════════════════════ */
+const PBS_TO_PCS_CODE_MAP = { C: 'R' };
+
+function confirmImportFromPBS(monthName) {
+    return new Promise(resolve => {
+        const overlay = document.getElementById('import-pbs-overlay');
+        const subtitle = document.getElementById('import-pbs-subtitle');
+        const cancelBtn = document.getElementById('import-pbs-cancel-btn');
+        const confirmBtn = document.getElementById('import-pbs-confirm-btn');
+
+        subtitle.textContent = `Import your PBS planner data for ${monthName} as the current schedule? This will overwrite any changes you've made.`;
+        overlay.classList.add('visible');
+
+        function close(result) {
+            overlay.classList.remove('visible');
+            cancelBtn.removeEventListener('click', onCancel);
+            confirmBtn.removeEventListener('click', onConfirm);
+            resolve(result);
+        }
+        function onCancel() { close(false); }
+        function onConfirm() { close(true); }
+
+        cancelBtn.addEventListener('click', onCancel, { once: true });
+        confirmBtn.addEventListener('click', onConfirm, { once: true });
+    });
+}
+
+async function importFromPBS() {
+    const m = BID_MONTHS[currentIdx];
+    if (!m || !m.dbId) {
+        await showImportNote('This month is not available in the database.', 'Import from PBS Planner');
+        return;
+    }
+    if (!_session) {
+        await showImportNote('You must be signed in to import from PBS Planner.', 'Import from PBS Planner');
+        return;
+    }
+
+    const confirmed = await confirmImportFromPBS(m.name);
+    if (!confirmed) return;
+
+    const { data, error } = await _supa
+        .from('schedules')
+        .select('days')
+        .eq('user_id', _session.user.id)
+        .eq('month_id', m.dbId)
+        .single();
+
+    if (error || !data) {
+        await showImportNote(`No PBS Planner schedule found for ${m.name}.`, 'Import from PBS Planner');
+        return;
+    }
+
+    const mapped = normalizeDayArray(
+        data.days.map(code => PBS_TO_PCS_CODE_MAP[code] ?? code),
+        m.dayCount,
+        'X'
+    );
+
+    monthData[currentIdx].current = mapped;
+    save({ immediate: true });
+    renderAll();
+    markPCSStale();
+}
+
+function flushPendingSave() {
+    if (!hasPendingSave) return;
+    if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+    }
+    writeSaveSnapshot();
+    hasPendingSave = false;
+}
+
+function save(options = {}) {
+    const immediate = !!options.immediate;
+    hasPendingSave = true;
+
+    if (immediate) {
+        flushPendingSave();
+        return;
+    }
+
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => {
+        saveTimer = null;
+        flushPendingSave();
+    }, 150);
+}
+
+window.addEventListener('beforeunload', flushPendingSave);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        flushPendingSave();
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════════ */
+function changeFocusMonth(idx) {
+    if (idx < 0 || idx >= BID_MONTHS.length) return;
+    currentIdx = parseInt(idx);
+    syncUI();
+    renderAll();
+}
+
+function navigate(dir) {
+    const next = currentIdx + dir;
+    if (next < 0 || next >= BID_MONTHS.length) return;
+    changeFocusMonth(next);
+}
+
+function syncUI() {
+    const name = BID_MONTHS[currentIdx].name;
+    const isFirst = currentIdx === 0;
+    const isLast = currentIdx === BID_MONTHS.length - 1;
+
+    document.getElementById('d-month-title').innerText = name;
+    document.getElementById('m-month-title').innerText = name;
+
+    // Hide arrows at the bounds
+    ['d-btn-prev', 'm-btn-prev'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.visibility = isFirst ? 'hidden' : '';
+    });
+    ['d-btn-next', 'm-btn-next'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.visibility = isLast ? 'hidden' : '';
+    });
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   BRUSH & TARGET
+═══════════════════════════════════════════════════════════════ */
+
+const FIXED_CURRENT_CODES = new Set(['A', 'CQ', 'CI']);
+
+function isFixedCurrentDay(code) {
+    return FIXED_CURRENT_CODES.has(code);
+}
+
+function isDesiredDayLocked(mIdx, dIdx) {
+    return isFixedCurrentDay(monthData[mIdx].current[dIdx]);
+}
+
+function showLockedDayTooltip(dayEl) {
+    let tooltip = document.getElementById('locked-day-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'locked-day-tooltip';
+        tooltip.className = 'locked-day-tooltip';
+        document.body.appendChild(tooltip);
+    }
+
+    tooltip.textContent = 'Locked by current schedule';
+
+    const rect = dayEl.getBoundingClientRect();
+    const top = Math.max(12, rect.top - 42);
+    const left = rect.left + (rect.width / 2);
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.classList.add('visible');
+
+    clearTimeout(lockedTooltipTimer);
+    lockedTooltipTimer = setTimeout(() => {
+        tooltip.classList.remove('visible');
+    }, 1400);
+}
+
+function shouldMirrorCurrentToDesired(prevCode, nextCode) {
+    return isFixedCurrentDay(prevCode) || isFixedCurrentDay(nextCode);
+}
+
+function applyDayCodeChange(mIdx, dIdx, target, nextCode, options = {}) {
+    const markDirty = options.markDirty !== false;
+    const month = monthData[mIdx];
+    const arr = month && month[target];
+    if (!arr || dIdx < 0 || dIdx >= arr.length) return false;
+
+    const prevCode = arr[dIdx];
+    if (prevCode === nextCode) return false;
+
+    arr[dIdx] = nextCode;
+    if (markDirty) paintDirty = true;
+
+    if (target === 'current' && shouldMirrorCurrentToDesired(prevCode, nextCode)) {
+        month.desired[dIdx] = nextCode;
+        updateDayCell(mIdx, dIdx, 'desired');
+    }
+
+    updateDayCell(mIdx, dIdx, target);
+    return true;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PAINT
+═══════════════════════════════════════════════════════════════ */
+function paintDay(mIdx, dIdx, target) {
+    if (target === 'desired' && (activeBrush === 'A' || activeBrush === 'CI' || activeBrush === 'CQ')) return;
+    if (target === 'desired' && isDesiredDayLocked(mIdx, dIdx)) return;
+
+    applyDayCodeChange(mIdx, dIdx, target, activeBrush);
+}
+
+function endStroke() {
+    if (!paintDirty) return;
+    paintDirty = false;
+    save();
+    updateSidebarStats();
+    markPCSStale();
+}
+
+function updateDayCell(mIdx, dIdx, target) {
+    const code = monthData[mIdx][target][dIdx];
+    const gridClass = target === 'current' ? 'd-current-grid' : 'd-desired-grid';
+    // Desktop
+    const desktopGrid = document.getElementById(gridClass);
+    if (desktopGrid) {
+        const el = desktopGrid.querySelector(`.day[data-didx="${dIdx}"]`);
+        if (el) applyCellState(el, code, mIdx, dIdx, target);
+    }
+    // Mobile — update the day in the active mobile grid
+    const mobileGrid = document.querySelector(`#m-panel-curr .m-calendar-grid[data-target="${target}"]`);
+    if (mobileGrid) {
+        const el = mobileGrid.querySelector(`.day[data-didx="${dIdx}"]`);
+        if (el) applyCellState(el, code, mIdx, dIdx, target);
+    }
+    updateMobileFooterStats(mIdx);
+}
+
+function updateMobileFooterStats(mIdx) {
+    if (!usingMobile || mIdx !== currentIdx) return;
+
+    const currArr = monthData[mIdx]?.current || [];
+    const desArr = monthData[mIdx]?.desired || [];
+
+    const currXCount = currArr.filter(d => d === 'X').length;
+    const desXCount = desArr.filter(d => d === 'X').length;
+    const mismatch = currXCount !== desXCount;
+
+    let currXBlks = 0, inX = false;
+    currArr.forEach(d => { if (d === 'X') { if (!inX) { currXBlks++; inX = true; } } else inX = false; });
+    let desXBlks = 0; inX = false;
+    desArr.forEach(d => { if (d === 'X') { if (!inX) { desXBlks++; inX = true; } } else inX = false; });
+
+    const currXEl = document.getElementById('m-current-x-count');
+    const desXEl = document.getElementById('m-desired-x-count');
+    const currBlksEl = document.getElementById('m-current-x-blks');
+    const desBlksEl = document.getElementById('m-desired-x-blks');
+
+    if (currXEl) currXEl.textContent = `X: ${currXCount}`;
+    if (desXEl) {
+        desXEl.textContent = `X: ${desXCount}`;
+        desXEl.style.color = mismatch ? 'var(--error)' : 'var(--x-green)';
+    }
+    if (currBlksEl) currBlksEl.textContent = `Blks: ${currXBlks}`;
+    if (desBlksEl) desBlksEl.textContent = `Blks: ${desXBlks}`;
+}
+
+function applyCellState(el, code, mIdx, dIdx, target) {
+    ['X', 'R', 'A', 'CQ', 'CI', 'IVD'].forEach(c => el.classList.remove(c));
+    el.classList.add(code);
+    const codeEl = el.querySelector('.day-code');
+    if (codeEl) codeEl.textContent = code;
+    // Show changed indicator on desired calendar
+    if (target === 'desired') {
+        const curr = monthData[mIdx].current[dIdx];
+        el.classList.toggle('changed', code !== curr);
+    }
+    el.classList.toggle('locked-desired', target === 'desired' && isDesiredDayLocked(mIdx, dIdx));
+}
+
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDER
+═══════════════════════════════════════════════════════════════ */
+function buildCalendarGridHTML(idx, target, gridClass) {
+    const m = BID_MONTHS[idx];
+    const arr = monthData[idx][target];
+    const curr = monthData[idx].current;
+
+    let html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<div class="weekday">${d}</div>`).join('');
+    for (let i = 0; i < m.start.getDay(); i++) html += '<div></div>';
+    arr.forEach((code, dIdx) => {
+        const date = new Date(m.start); date.setDate(m.start.getDate() + dIdx);
+        const changed = (target === 'desired' && code !== curr[dIdx]) ? ' changed' : '';
+        const isLocked = target === 'desired' && isDesiredDayLocked(idx, dIdx);
+        const locked = isLocked ? ' locked-desired' : '';
+        const title = isLocked ? ' title="Locked by current schedule"' : '';
+        html += `<div class="day ${code}${changed}${locked}" data-didx="${dIdx}" data-target="${target}"${title}>
+    <span class="day-num">${date.getDate()}</span>
+    <span class="day-code">${escapeHTML(code)}</span>
+</div>`;
+    });
+    return `<div class="${gridClass}" data-target="${target}">${html}</div>`;
+}
+
+function renderAll() {
+    if (!usingMobile) {
+        renderDesktopCurrent();
+    } else {
+        renderMobilePanels();
+    }
+    updateSidebarStats();
+    markPCSStale();
+}
+
+function buildStaffingGridHTML(idx, gridClass) {
+    const m = BID_MONTHS[idx];
+    const arr = monthData[idx].staffing;
+    let html = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<div class="weekday">${d}</div>`).join('');
+    for (let i = 0; i < m.start.getDay(); i++) html += '<div></div>';
+    arr.forEach((ok, dIdx) => {
+        const date = new Date(m.start); date.setDate(m.start.getDate() + dIdx);
+        // Use .day for identical sizing to current/desired cells.
+        // The empty .day-code span acts as the same height-driver as the code label in regular cells.
+        // .sday is kept for event handler targeting.
+        html += `<div class="day sday ${ok ? 'ok' : 'blocked'}" data-didx="${dIdx}" data-target="staffing">
+    <span class="day-num">${date.getDate()}</span>
+    <span class="day-code" aria-hidden="true"></span>
+</div>`;
+    });
+    return `<div class="${gridClass}" data-target="staffing">${html}</div>`;
+}
+
+function renderDesktopCurrent() {
+    // Current month dual
+    document.getElementById('d-current-grid').innerHTML =
+        buildCalendarGridHTML(currentIdx, 'current', 'd-calendar-grid');
+    document.getElementById('d-desired-grid').innerHTML =
+        buildCalendarGridHTML(currentIdx, 'desired', 'd-calendar-grid');
+    document.getElementById('d-staffing-grid').innerHTML =
+        buildStaffingGridHTML(currentIdx, 'd-calendar-grid');
+}
+
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RENDER
+═══════════════════════════════════════════════════════════════ */
+
+function buildMobilePCSHTML(idx) {
+    return buildPCSHTML(idx);
+}
+function renderMobilePanels() {
+    renderMobilePanel('m-panel-curr', currentIdx);
+}
+
+function renderMobilePanel(containerId, idx) {
+    const container = document.getElementById(containerId);
+    if (idx < 0 || idx >= BID_MONTHS.length) { container.innerHTML = ''; return; }
+    const m = BID_MONTHS[idx];
+
+    // per-tab toolbars
+    const toolbars = `
+<div id="m-toolbar-current" class="m-palette-row" style="display:${activeMobileTab === 'current' ? 'flex' : 'none'}">
+    <button class="m-settings-btn" onclick="openSheet()">☰</button>
+    <div class="m-palette">
+        ${['R', 'X', 'A', 'CQ', 'CI', 'IVD'].map(b =>
+        `<div class="brush ${b}${b === activeBrush ? ' active' : ''}" data-brush="${b}">${b}</div>`
+    ).join('')}
+    </div>
+</div>
+<div id="m-toolbar-desired" class="m-palette-row" style="display:${activeMobileTab === 'desired' ? 'flex' : 'none'}">
+    <button class="m-settings-btn" onclick="openSheet()">☰</button>
+    <div class="m-palette">
+        ${['R', 'X', 'A', 'CQ', 'IVD'].map(b =>
+        `<div class="brush ${b}${b === activeBrush ? ' active' : ''}" data-brush="${b}">${b}</div>`
+    ).join('')}
+    </div>
+</div>
+<div id="m-toolbar-staffing" class="m-palette-row" style="display:${activeMobileTab === 'staffing' ? 'flex' : 'none'}">
+    <button class="m-settings-btn" onclick="openSheet()">☰</button>
+    <span class="m-toolbar-label">Tap days to toggle coverage.<br>Blue = Res Avail ≥ Res Req.<br>Black = Res Avail < Res Req.</span>
+</div>
+<div id="m-toolbar-changes" class="m-palette-row" style="display:${activeMobileTab === 'changes' ? 'flex' : 'none'}">
+    <button class="m-settings-btn" onclick="openSheet()">☰</button>
+    <button class="btn m-run-analysis-btn" onclick="runPCSAnalysis()" style="flex:1;margin:0;background:#1a2744;color:#93c5fd;border-color:#2563eb">🔍 Run PCS Analysis</button>
+</div>`;
+
+    const pcsHTML = pcsIsStale
+        ? `<div class="pcs-stale-msg">Schedule changed — tap <b>Run PCS Analysis</b> to update.</div>`
+        : buildMobilePCSHTML(idx);
+
+    const currArr = monthData[idx].current || [];
+    const desArr = monthData[idx].desired || [];
+    const currXCount = currArr.filter(d => d === 'X').length;
+    const desXCount = desArr.filter(d => d === 'X').length;
+    const mismatch = currXCount !== desXCount;
+
+    let currXBlks = 0, inX = false;
+    currArr.forEach(d => { if (d === 'X') { if (!inX) { currXBlks++; inX = true; } } else inX = false; });
+    let desXBlks = 0; inX = false;
+    desArr.forEach(d => { if (d === 'X') { if (!inX) { desXBlks++; inX = true; } } else inX = false; });
+
+    const desXColor = mismatch ? 'var(--error)' : 'var(--x-green)';
+
+    container.innerHTML = `
+${toolbars}
+<div id="m-tab-current" class="m-cal-tabs-content ${activeMobileTab === 'current' ? 'active' : ''}">
+    <div class="m-cal-card">
+        <div class="m-cal-header">
+            <span class="m-cal-badge badge-current">CURRENT</span>
+            <button class="btn-import-pbs" onclick="importFromPBS()">Import from PBS Planner</button>
+        </div>
+        ${buildCalendarGridHTML(idx, 'current', 'm-calendar-grid')}
+        <div class="d-cal-panel-footer" style="margin-top:8px;padding-top:8px">
+            <span id="m-current-x-count" style="color:var(--x-green);font-size:0.8rem;font-weight:700">X: ${currXCount}</span>
+            <span id="m-current-x-blks" style="color:var(--text-muted);font-size:0.8rem;font-weight:700">Blks: ${currXBlks}</span>
+        </div>
+    </div>
+</div>
+<div id="m-tab-desired" class="m-cal-tabs-content ${activeMobileTab === 'desired' ? 'active' : ''}">
+    <div class="m-cal-card">
+        <div class="m-cal-header">
+            <span class="m-cal-badge badge-desired">DESIRED</span>
+            <button class="btn-import-pbs" onclick="copyCurrentToDesired()">Copy from Current</button>
+        </div>
+        ${buildCalendarGridHTML(idx, 'desired', 'm-calendar-grid')}
+        <div class="d-cal-panel-footer" style="margin-top:8px;padding-top:8px">
+            <span id="m-desired-x-count" style="color:${desXColor};font-size:0.8rem;font-weight:700">X: ${desXCount}</span>
+            <span id="m-desired-x-blks" style="color:var(--text-muted);font-size:0.8rem;font-weight:700">Blks: ${desXBlks}</span>
+        </div>
+    </div>
+</div>
+<div id="m-tab-staffing" class="m-cal-tabs-content ${activeMobileTab === 'staffing' ? 'active' : ''}">
+    <div class="m-cal-card">
+        <div class="m-cal-header">
+            <span class="m-cal-badge badge-staffing">RESERVE LEVELS</span>
+        </div>
+        ${buildStaffingGridHTML(idx, 'm-calendar-grid')}
+    </div>
+</div>
+<div id="m-tab-changes" class="m-cal-tabs-content ${activeMobileTab === 'changes' ? 'active' : ''}">
+    <div class="m-changes-card">
+        ${pcsHTML}
+    </div>
+</div>`;
+
+    // Status
+    document.getElementById('m-sheet-status').innerHTML =
+        `<span style="color:var(--text-muted)">PCS Analysis — ${m.name}</span>`;
+
+    // Brush clicks
+    container.querySelectorAll('.brush').forEach(el => {
+        el.addEventListener('click', () => setBrush(el.dataset.brush));
+    });
+
+    // Touch toggle on staffing grid
+    const staffingGrid = container.querySelector('.m-calendar-grid[data-target="staffing"]');
+    if (staffingGrid) {
+        let tapStartX, tapStartY;
+        const staffingCard = staffingGrid.closest('.m-cal-card');
+        staffingCard.addEventListener('touchstart', e => {
+            tapStartX = e.changedTouches[0].clientX;
+            tapStartY = e.changedTouches[0].clientY;
+        }, { passive: true });
+        staffingCard.addEventListener('touchend', e => {
+            const t = e.changedTouches[0];
+            if (Math.abs(t.clientX - tapStartX) > 10 || Math.abs(t.clientY - tapStartY) > 10) return;
+            const sdayEl = document.elementFromPoint(t.clientX, t.clientY)?.closest('.sday[data-didx]');
+            if (sdayEl) {
+                const dIdx = parseInt(sdayEl.dataset.didx);
+                monthData[currentIdx].staffing[dIdx] = !monthData[currentIdx].staffing[dIdx];
+                save();
+                renderMobilePanels();
+                markPCSStale();
+            }
+        });
+    }
+
+    // Touch painting on both grids
+    ['current', 'desired'].forEach(target => {
+        const grid = container.querySelector(`.m-calendar-grid[data-target="${target}"]`);
+        if (!grid) return;
+        let tapStartX, tapStartY;
+        const parent = grid.closest('.m-cal-card');
+        parent.addEventListener('touchstart', e => {
+            tapStartX = e.changedTouches[0].clientX;
+            tapStartY = e.changedTouches[0].clientY;
+        }, { passive: true });
+        parent.addEventListener('touchend', e => {
+            const t = e.changedTouches[0];
+            if (Math.abs(t.clientX - tapStartX) > 10 || Math.abs(t.clientY - tapStartY) > 10) return;
+            const dayEl = document.elementFromPoint(t.clientX, t.clientY)?.closest('.day[data-didx]');
+            if (dayEl) {
+                const dIdx = parseInt(dayEl.dataset.didx);
+                if (target === 'desired' && isDesiredDayLocked(currentIdx, dIdx)) {
+                    showLockedDayTooltip(dayEl);
+                    return;
+                }
+                paintDay(currentIdx, dIdx, target);
+                endStroke();
+            }
+        });
+    });
+}
+
+function switchMobileTab(tab) {
+    activeMobileTab = tab;
+    // Update tab buttons
+    document.querySelectorAll('.m-tab').forEach(el => {
+        el.classList.toggle('active-tab', el.dataset.tab === tab);
+    });
+    // Show/hide content and toolbars
+    ['current', 'desired', 'staffing', 'changes'].forEach(t => {
+        const el = document.getElementById(`m-tab-${t}`);
+        if (el) el.classList.toggle('active', t === tab);
+        const toolbar = document.getElementById(`m-toolbar-${t}`);
+        if (toolbar) toolbar.style.display = t === tab ? 'flex' : 'none';
+    });
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DESKTOP MOUSE PAINTING — only on desired panel
+═══════════════════════════════════════════════════════════════ */
+function toggleStaffingDay(dIdx) {
+    monthData[currentIdx].staffing[dIdx] = !monthData[currentIdx].staffing[dIdx];
+    save();
+    renderDesktopCurrent();
+    markPCSStale();
+}
+
+function initDesktopMousePainting() {
+    // Staffing calendar: click or drag to toggle blocked/ok
+    let staffingPaintValue = null;
+    document.addEventListener('mousedown', e => {
+        const sdayEl = e.target.closest && e.target.closest('#d-staffing-grid .sday[data-didx]');
+        if (sdayEl && (e.button === 0 || e.button === 2)) {
+            const dIdx = parseInt(sdayEl.dataset.didx);
+            staffingPaintValue = !monthData[currentIdx].staffing[dIdx]; // paint with toggled value
+            monthData[currentIdx].staffing[dIdx] = staffingPaintValue;
+            save();
+            renderDesktopCurrent();
+            markPCSStale();
+            e.preventDefault();
+            return;
+        }
+    });
+    document.addEventListener('mousemove', e => {
+        if (staffingPaintValue === null) return;
+        const sdayEl = e.target.closest && e.target.closest('#d-staffing-grid .sday[data-didx]');
+        if (sdayEl) {
+            const dIdx = parseInt(sdayEl.dataset.didx);
+            if (monthData[currentIdx].staffing[dIdx] !== staffingPaintValue) {
+                monthData[currentIdx].staffing[dIdx] = staffingPaintValue;
+                save();
+                renderDesktopCurrent();
+                markPCSStale();
+            }
+        }
+    });
+    document.addEventListener('mouseup', e => {
+        if (e.button === 0 || e.button === 2) staffingPaintValue = null;
+    });
+
+    document.addEventListener('mousedown', e => {
+        const dayEl = e.target.closest && e.target.closest('#d-current-grid .day[data-didx], #d-desired-grid .day[data-didx]');
+        if (!dayEl) return;
+        const target = dayEl.closest('#d-current-grid') ? 'current' : 'desired';
+        const dIdx = parseInt(dayEl.dataset.didx);
+        if (e.button === 2) {
+            if (target === 'desired' && isDesiredDayLocked(currentIdx, dIdx)) {
+                showLockedDayTooltip(dayEl);
+                e.preventDefault();
+                return;
+            }
+
+            const prevCode = monthData[currentIdx][target][dIdx];
+            const nextCode = prevCode === 'X' ? 'R' : 'X';
+            const changed = applyDayCodeChange(currentIdx, dIdx, target, nextCode, { markDirty: false });
+            if (changed) {
+                save();
+                updateSidebarStats();
+                markPCSStale();
+            }
+            e.preventDefault(); return;
+        }
+        if (e.button === 0) {
+            if (target === 'desired' && isDesiredDayLocked(currentIdx, dIdx)) {
+                showLockedDayTooltip(dayEl);
+                e.preventDefault();
+                return;
+            }
+            isPainting = true;
+            paintDay(currentIdx, dIdx, target);
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('mousemove', e => {
+        if (!isPainting) return;
+        const dayEl = e.target.closest && e.target.closest('#d-current-grid .day[data-didx], #d-desired-grid .day[data-didx]');
+        if (dayEl) {
+            const target = dayEl.closest('#d-current-grid') ? 'current' : 'desired';
+            paintDay(currentIdx, parseInt(dayEl.dataset.didx), target);
+        }
+    });
+    document.addEventListener('mouseup', e => {
+        if (e.button === 0) { isPainting = false; endStroke(); }
+    });
+    document.addEventListener('contextmenu', e => {
+        if (e.target.closest && e.target.closest('#d-current-grid .day[data-didx], #d-desired-grid .day[data-didx], #d-staffing-grid .sday[data-didx]'))
+            e.preventDefault();
+    });
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ACTIONS
+═══════════════════════════════════════════════════════════════ */
+function copyCurrentToDesired() {
+    monthData[currentIdx].desired = [...monthData[currentIdx].current];
+    save(); renderAll();
+}
+
+function clearDesired() {
+    monthData[currentIdx].desired = Array(BID_MONTHS[currentIdx].dayCount).fill('X');
+    save(); renderAll();
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   EXPORT / IMPORT
+═══════════════════════════════════════════════════════════════ */
+const EXPORT_SCHEMA = 'pcs-export';
+const EXPORT_VERSION = 1;
+
+function canonicalJSONStringify(value) {
+    if (value === null || typeof value !== 'object') {
+        return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+        return '[' + value.map(v => canonicalJSONStringify(v)).join(',') + ']';
+    }
+
+    const keys = Object.keys(value).sort();
+    const pairs = keys.map(k => JSON.stringify(k) + ':' + canonicalJSONStringify(value[k]));
+    return '{' + pairs.join(',') + '}';
+}
+
+function computeExportChecksum(payload) {
+    const str = canonicalJSONStringify(payload);
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function unwrapImportedJSON(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new Error('Import file is not a valid JSON object.');
+    }
+
+    // Backward compatibility: legacy JSON files directly contain month data.
+    if (raw.schema !== EXPORT_SCHEMA) return raw;
+
+    if (raw.version !== EXPORT_VERSION) {
+        throw new Error(`Unsupported export version: ${raw.version}`);
+    }
+    if (!raw.data || typeof raw.data !== 'object' || Array.isArray(raw.data)) {
+        throw new Error('Export payload is missing data.');
+    }
+    if (typeof raw.checksum !== 'string' || !raw.checksum) {
+        throw new Error('Export payload is missing checksum.');
+    }
+
+    const expected = computeExportChecksum({
+        schema: raw.schema,
+        version: raw.version,
+        data: raw.data,
+    });
+    if (expected !== raw.checksum) {
+        throw new Error('Import checksum failed. The file may be corrupted or modified.');
+    }
+
+    return raw.data;
+}
+
+async function exportData() {
+    const envelope = {
+        schema: EXPORT_SCHEMA,
+        version: EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        data: monthData,
+    };
+    envelope.checksum = computeExportChecksum({
+        schema: envelope.schema,
+        version: envelope.version,
+        data: envelope.data,
+    });
+
+    const json = JSON.stringify(envelope, null, 2);
+    if (window.showSaveFilePicker) {
+        try {
+            const fh = await window.showSaveFilePicker({
+                suggestedName: 'schedule_change_data.json',
+                types: [{ description: 'JSON File', accept: { 'application/json': ['.json'] } }]
+            });
+            const w = await fh.createWritable();
+            await w.write(json); await w.close(); return;
+        } catch (err) { if (err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(json);
+    a.download = 'schedule_change_data.json'; a.click();
+}
+
+const PARSER_MONTH_PERIODS = {
+    0: { start: [1, 1], end: [1, 30] },
+    1: { start: [1, 31], end: [3, 1] },
+    2: { start: [3, 2], end: [3, 31] },
+    3: { start: [4, 1], end: [5, 1] },
+    4: { start: [5, 2], end: [6, 1] },
+    5: { start: [6, 2], end: [7, 1] },
+    6: { start: [7, 2], end: [7, 31] },
+    7: { start: [8, 1], end: [8, 30] },
+    8: { start: [8, 31], end: [9, 30] },
+    9: { start: [10, 1], end: [10, 31] },
+    10: { start: [11, 1], end: [11, 30] },
+    11: { start: [12, 1], end: [12, 31] },
+};
+
+const PARSER_MONTH_ABBREV_TO_INDEX = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+const PARSER_SPAN_RE = /([A-Z0-9]+)\s+(\d{4}-\d{2}-\d{2})\s+[\d:]+\s+(\d{4}-\d{2}-\d{2})\s+[\d:]+/;
+const PARSER_VAC_RE = /^[PSTQF]VAC$/;
+
+function parserCleanText(text) {
+    return text.replace(/[^\x20-\x7E]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function parserUtcDate(y, m, d) {
+    return new Date(Date.UTC(y, m - 1, d));
+}
+
+function parserDateFromISO(iso) {
+    const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+    return parserUtcDate(y, m, d);
+}
+
+function parserToISO(dateObj) {
+    return dateObj.toISOString().slice(0, 10);
+}
+
+function parserFormatBidPeriodLabel(startDate, endDate) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (!startDate || !endDate) return 'this bid period';
+
+    const sMon = months[startDate.getUTCMonth()];
+    const eMon = months[endDate.getUTCMonth()];
+    const sDay = startDate.getUTCDate();
+    const eDay = endDate.getUTCDate();
+    const sYear = startDate.getUTCFullYear();
+    const eYear = endDate.getUTCFullYear();
+
+    if (sYear === eYear) {
+        if (sMon === eMon) {
+            return `${sMon} ${sDay}-${eDay}, ${sYear}`;
+        }
+        return `${sMon} ${sDay}-${eMon} ${eDay}, ${sYear}`;
+    }
+
+    return `${sMon} ${sDay}, ${sYear}-${eMon} ${eDay}, ${eYear}`;
+}
+
+function parserDetectBidPeriod(title) {
+    const lower = (title || '').toLowerCase();
+    let monthIdx = null;
+    for (const [abbr, idx] of Object.entries(PARSER_MONTH_ABBREV_TO_INDEX)) {
+        if (lower.includes(abbr)) {
+            monthIdx = idx;
+            break;
+        }
+    }
+    const yearMatch = (title || '').match(/\b(20\d{2})\b/);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+    return { monthIdx, year };
+}
+
+function parserGetBidPeriod(monthIdx, year) {
+    const period = PARSER_MONTH_PERIODS[monthIdx];
+    if (!period) throw new Error(`Unsupported month index: ${monthIdx}`);
+    const start = parserUtcDate(year, period.start[0], period.start[1]);
+    const end = parserUtcDate(year, period.end[0], period.end[1]);
+    return { start, end };
+}
+
+function parserParseSpans(htmlFragment) {
+    const fragmentDoc = new DOMParser().parseFromString(htmlFragment, 'text/html');
+    const spans = [...fragmentDoc.querySelectorAll('span.PBSEvent')];
+    const out = [];
+
+    spans.forEach(span => {
+        const cleaned = parserCleanText(span.textContent || '');
+        const m = cleaned.match(PARSER_SPAN_RE);
+        if (m) {
+            out.push({
+                code: m[1],
+                start: parserDateFromISO(m[2]),
+                end: parserDateFromISO(m[3]),
+            });
+        }
+    });
+
+    return out;
+}
+
+function parserFillRange(scheduleMap, codeValue, eventStart, eventEnd, bidStart, bidEnd, overwrite = false) {
+    const startMs = Math.max(eventStart.getTime(), bidStart.getTime());
+    const endMs = Math.min(eventEnd.getTime(), bidEnd.getTime());
+    for (let t = startMs; t <= endMs; t += 86400000) {
+        const key = parserToISO(new Date(t));
+        if (overwrite || scheduleMap.get(key) === null) {
+            scheduleMap.set(key, codeValue);
+        }
+    }
+}
+
+function parserFindEmployeeButton(doc, employeeNeedle) {
+    const needle = String(employeeNeedle || '').trim();
+    if (!/^\d{9}$/.test(needle)) {
+        throw new Error('Employee number must be 9 digits.');
+    }
+
+    const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tokenRe = new RegExp(`(?:^|\\D)${escapeRegExp(needle)}(?:\\D|$)`);
+    const candidates = [...doc.querySelectorAll('input[value]')];
+
+    // Prefer an exact 9-digit token match so we do not accidentally select a different employee.
+    const exactTokenMatches = candidates.filter(el => {
+        const raw = el.getAttribute('value') || '';
+        return tokenRe.test(raw);
+    });
+
+    if (exactTokenMatches.length === 1) {
+        return exactTokenMatches[0];
+    }
+
+    if (exactTokenMatches.length > 1) {
+        throw new Error(`Multiple employees matched ${needle}. Please verify the HTML export.`);
+    }
+
+    return null;
+}
+
+function parseCompositeHTMLToImportPayload(htmlText, employeeId) {
+    const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+    const title = parserCleanText(doc.querySelector('title')?.textContent || '');
+    const { monthIdx, year } = parserDetectBidPeriod(title);
+    if (monthIdx === null) {
+        throw new Error(`Could not detect month from title: '${title}'`);
+    }
+
+    const employeeNeedle = String(employeeId || '').trim();
+    const btn = parserFindEmployeeButton(doc, employeeNeedle);
+    if (!btn) {
+        throw new Error(`Employee ${employeeNeedle} not found in file.`);
+    }
+
+    const onclick = btn.getAttribute('onclick') || '';
+    const reasonMatch = onclick.match(/makeNewWindow\((\d+)\)/);
+    if (!reasonMatch) {
+        throw new Error(`Could not determine Reason div index for ${employeeNeedle}.`);
+    }
+
+    const employeeDiv = doc.getElementById(`Reason${reasonMatch[1]}`);
+    if (!employeeDiv) {
+        throw new Error(`Div #Reason${reasonMatch[1]} not found.`);
+    }
+
+    const { start: bidStart, end: bidEnd } = parserGetBidPeriod(monthIdx, year);
+    const rawHtml = employeeDiv.outerHTML || '';
+    const markerRe = /<<[\s\xa0]+Current[\s\xa0]+Bid[\s\xa0]+>>/;
+    const markerMatch = rawHtml.match(markerRe);
+
+    let preBlock = '';
+    let currentBlock = rawHtml;
+    if (rawHtml.includes('Pre-Awards') && markerMatch) {
+        const preStart = rawHtml.indexOf('Pre-Awards') + 'Pre-Awards'.length;
+        preBlock = rawHtml.slice(preStart, markerMatch.index);
+        currentBlock = rawHtml.slice(markerMatch.index + markerMatch[0].length);
+    } else if (rawHtml.includes('Pre-Awards')) {
+        preBlock = rawHtml.split('Pre-Awards')[1] || '';
+        currentBlock = '';
+    }
+
+    const schedule = new Map();
+    for (let t = bidStart.getTime(); t <= bidEnd.getTime(); t += 86400000) {
+        schedule.set(parserToISO(new Date(t)), null);
+    }
+
+    parserParseSpans(preBlock).forEach(({ code, start, end }) => {
+        if (code !== 'ALPP' && code !== '35WD' && !PARSER_VAC_RE.test(code) && start < bidStart && end >= bidStart) {
+            parserFillRange(schedule, 'CI', start, end, bidStart, bidEnd);
+        } else if (code === 'ALPP') {
+            parserFillRange(schedule, 'ALPA', start, end, bidStart, bidEnd);
+        } else if (code === '35WD') {
+            parserFillRange(schedule, 'CQ', start, end, bidStart, bidEnd);
+        } else if (PARSER_VAC_RE.test(code)) {
+            parserFillRange(schedule, 'A', start, end, bidStart, bidEnd);
+        }
+    });
+
+    const divTextClean = parserCleanText(employeeDiv.textContent || '');
+    const hasAwardedReserveDays = divTextClean.includes('Awarded Reserve Days:');
+    let reserveEntryCount = 0;
+    if (hasAwardedReserveDays) {
+        const reserveBlock = divTextClean.split('Awarded Reserve Days:')[1] || '';
+        const reserveRe = /(\d{4}-\d{2}-\d{2})\s*\(RES\)/g;
+        let m;
+        while ((m = reserveRe.exec(reserveBlock)) !== null) {
+            reserveEntryCount += 1;
+            if (schedule.has(m[1]) && schedule.get(m[1]) === null) {
+                schedule.set(m[1], 'R');
+            }
+        }
+    }
+
+    parserParseSpans(currentBlock).forEach(({ code, start, end }) => {
+        if (PARSER_VAC_RE.test(code)) {
+            parserFillRange(schedule, 'A', start, end, bidStart, bidEnd);
+        }
+    });
+
+    const current = [...schedule.values()].map(v => v || 'X');
+    return {
+        '1': {
+            current,
+            desired: [...current],
+        },
+        _importMeta: {
+            employeeId: employeeNeedle,
+            bidPeriodLabel: parserFormatBidPeriodLabel(bidStart, bidEnd),
+            hasAwardedReserveDays,
+            reserveEntryCount,
+        },
+    };
+}
+
+function applyImportedData(imp) {
+    const validateImportedDayArray = (arr, expectedDays, monthIdx, fieldName) => {
+        if (!Array.isArray(arr) || arr.length !== expectedDays) {
+            throw new Error(`Month ${monthIdx} ${fieldName} data is missing or invalid`);
+        }
+
+        for (let i = 0; i < arr.length; i++) {
+            const code = arr[i];
+            if (typeof code !== 'string' || !ALLOWED_DAY_CODES.has(code)) {
+                throw new Error(`Month ${monthIdx} ${fieldName}[${i}] has invalid code: ${String(code)}`);
+            }
+        }
+    };
+
+    const validateImportedStaffingArray = (arr, expectedDays, monthIdx) => {
+        if (!Array.isArray(arr) || arr.length !== expectedDays) return false;
+        for (let i = 0; i < arr.length; i++) {
+            if (typeof arr[i] !== 'boolean') {
+                throw new Error(`Month ${monthIdx} staffing[${i}] must be true or false`);
+            }
+        }
+        return true;
+    };
+
+    const hasMonthZero = !!(imp && Object.prototype.hasOwnProperty.call(imp, '0'));
+    const hasMonthOne = !!(imp && Object.prototype.hasOwnProperty.call(imp, '1'));
+
+    if (!hasMonthZero && !hasMonthOne) {
+        throw new Error('Missing month keys 0 and 1');
+    }
+
+    const applyImportedMonth = idx => {
+        const importedMonth = imp[String(idx)];
+        if (!importedMonth || typeof importedMonth !== 'object') {
+            throw new Error(`Month ${idx} data is invalid`);
+        }
+
+        const expectedDays = BID_MONTHS[idx]?.dayCount || 0;
+        const importedCurrent = Array.isArray(importedMonth.current) ? importedMonth.current : null;
+        const importedDesired = Array.isArray(importedMonth.desired) ? importedMonth.desired : null;
+
+        validateImportedDayArray(importedCurrent, expectedDays, idx, 'current');
+
+        if (importedDesired) {
+            validateImportedDayArray(importedDesired, expectedDays, idx, 'desired');
+        }
+
+        const hasValidImportedStaffing = validateImportedStaffingArray(importedMonth.staffing, expectedDays, idx);
+
+        monthData[idx] = {
+            current: [...importedCurrent],
+            desired: (importedDesired && importedDesired.length === expectedDays)
+                ? [...importedDesired]
+                : [...monthData[idx].desired],
+            staffing: hasValidImportedStaffing
+                ? [...importedMonth.staffing]
+                : Array(expectedDays).fill(true),
+        };
+    };
+
+    if (hasMonthZero) applyImportedMonth(0);
+    if (hasMonthOne) applyImportedMonth(1);
+}
+
+async function importData(event) {
+    const file = event.target?.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const JSON_IMPORT_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+    const HTML_IMPORT_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+
+    try {
+        const fileName = (file.name || '').toLowerCase();
+
+        if (fileName.endsWith('.json')) {
+            if (file.size > JSON_IMPORT_MAX_BYTES) {
+                throw new Error('JSON import is too large. Maximum allowed size is 20 MB.');
+            }
+
+            const text = await file.text();
+            const imp = unwrapImportedJSON(JSON.parse(text));
+            applyImportedData(imp);
+            save(); renderAll();
+            return;
+        }
+
+        if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+            if (file.size > HTML_IMPORT_MAX_BYTES) {
+                throw new Error('HTML import is too large. Maximum allowed size is 20 MB.');
+            }
+
+            const employeeId = await askForEmployeeId(file.name || 'selected file');
+            if (employeeId === null) return;
+
+            const htmlText = await file.text();
+            const payload = parseCompositeHTMLToImportPayload(htmlText, employeeId);
+
+            applyImportedData(payload);
+            save(); renderAll();
+
+            const importMeta = payload && payload._importMeta;
+            if (importMeta && (!importMeta.hasAwardedReserveDays || importMeta.reserveEntryCount === 0)) {
+                await showNoReserveNotice(importMeta.employeeId, importMeta.bidPeriodLabel);
+            }
+            return;
+        }
+
+        throw new Error('Unsupported file type. Choose a .json, .html, or .htm file.');
+    } catch (err) {
+        const message = err?.message || 'Invalid file.';
+        if (/Employee\s+\d+\s+not found in file\./i.test(message)) {
+            await showImportNote(message, 'Employee Not Found');
+            return;
+        }
+        await showImportNote(message, 'Import Error');
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   BOTTOM SHEET
+═══════════════════════════════════════════════════════════════ */
+function initBottomSheet() {
+    if (sheetInited) return;
+    sheetInited = true;
+
+    document.getElementById('m-btn-prev').addEventListener('click', () => navigate(-1));
+    document.getElementById('m-btn-next').addEventListener('click', () => navigate(1));
+
+    const sheet = document.getElementById('m-bottom-sheet');
+    const handle = document.getElementById('m-sheet-handle-area');
+    const body = document.getElementById('m-sheet-body');
+    let open = false, startY = 0, startT = 0, dragging = false, baseT = 0, locked = false;
+
+    function maxT() {
+        return sheet.offsetHeight - parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek'));
+    }
+    handle.addEventListener('click', () => { open = !open; sheet.classList.toggle('expanded', open); });
+    sheet.addEventListener('touchstart', e => {
+        open = sheet.classList.contains('expanded');
+        startY = e.touches[0].clientY; startT = Date.now(); dragging = false;
+        baseT = open ? 0 : maxT(); locked = body.contains(e.target) && body.scrollTop > 0;
+    }, { passive: true });
+    sheet.addEventListener('touchmove', e => {
+        const dy = e.touches[0].clientY - startY;
+        if (locked) { if (body.scrollTop <= 0 && dy > 0) locked = false; else return; }
+        if (Math.abs(dy) > 8) dragging = true;
+        if (!dragging) return;
+        if (open && dy < 0) return;
+        const t = Math.max(0, Math.min(maxT(), baseT + dy));
+        sheet.style.transition = 'none'; sheet.style.transform = `translateY(${t}px)`;
+        e.preventDefault();
+    }, { passive: false });
+    sheet.addEventListener('touchend', e => {
+        if (!dragging) return; dragging = false;
+        const dy = e.changedTouches[0].clientY - startY, vel = Math.abs(dy) / (Date.now() - startT);
+        sheet.style.transition = ''; sheet.style.transform = '';
+        open = vel > 0.5 ? dy < 0 : (baseT + dy) < maxT() * 0.45;
+        sheet.classList.toggle('expanded', open);
+    }, { passive: true });
+}
+
+function openSheet() {
+    document.getElementById('m-bottom-sheet').classList.add('expanded');
+}
+
+function closeSheet() {
+    const sheet = document.getElementById('m-bottom-sheet');
+    sheet.classList.remove('expanded');
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════════════════════════ */
+const SETTINGS_KEY = 'scp_settings_v1';
+
+function loadSettings() {
+    const s = readStoredJSON(SETTINGS_KEY, null);
+    if (!s) return;
+    if (s.maxXblocks != null) document.getElementById('s-max-xblocks').value = s.maxXblocks;
+    if (s.minWork != null) document.getElementById('s-min-work').value = s.minWork;
+    if (s.maxWork != null) document.getElementById('s-max-work').value = s.maxWork;
+    syncSettingsToMobile();
+}
+
+function syncSettingsToMobile() {
+    const s = getSettings();
+    const n = document.getElementById('m-s-max-xblocks'); if (n) n.value = s.maxXblocks;
+    const o = document.getElementById('m-s-min-work'); if (o) o.value = s.minWork;
+    const p = document.getElementById('m-s-max-work'); if (p) p.value = s.maxWork;
+}
+
+function syncSettingsFromMobile() {
+    const get = id => parseInt(document.getElementById(id)?.value) || 0;
+    document.getElementById('s-max-xblocks').value = get('m-s-max-xblocks');
+    document.getElementById('s-min-work').value = get('m-s-min-work');
+    document.getElementById('s-max-work').value = get('m-s-max-work');
+    saveSettings();
+    renderAll();
+}
+
+function saveSettings() {
+    const s = getSettings();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        maxXblocks: s.maxXblocks,
+        minWork: s.minWork,
+        maxWork: s.maxWork,
+    }));
+}
+
+function getSettings() {
+    return {
+        maxXblocks: parseInt(document.getElementById('s-max-xblocks').value) || 4,
+        minWork: parseInt(document.getElementById('s-min-work').value) || 4,
+        maxWork: parseInt(document.getElementById('s-max-work').value) || 99,
+    };
+}
+
+function onSettingsChange() {
+    saveSettings();
+    syncSettingsToMobile();
+    updateSidebarStats();
+    renderAll();
+}
+
+function updateSidebarStats() {
+    const idx = currentIdx;
+    const currDays = monthData[idx] ? monthData[idx].current : [];
+    const desDays = monthData[idx] ? monthData[idx].desired : [];
+
+    const currXCount = currDays.filter(d => d === 'X').length;
+    const desXCount = desDays.filter(d => d === 'X').length;
+    const mismatch = currXCount !== desXCount;
+
+    let currXBlks = 0, inX = false;
+    currDays.forEach(d => { if (d === 'X') { if (!inX) { currXBlks++; inX = true; } } else inX = false; });
+    let desXBlks = 0; inX = false;
+    desDays.forEach(d => { if (d === 'X') { if (!inX) { desXBlks++; inX = true; } } else inX = false; });
+
+    const currXEl = document.getElementById('d-current-x-count');
+    const desXEl = document.getElementById('d-desired-x-count');
+    const currBlksEl = document.getElementById('d-current-x-blks');
+    const desBlksEl = document.getElementById('d-desired-x-blks');
+
+    if (currXEl) { currXEl.innerText = `X: ${currXCount}`; currXEl.classList.remove('mismatch'); }
+    if (desXEl) { desXEl.innerText = `X: ${desXCount}`; desXEl.classList.toggle('mismatch', mismatch); }
+    if (currBlksEl) currBlksEl.innerText = `Blks: ${currXBlks}`;
+    if (desBlksEl) desBlksEl.innerText = `Blks: ${desXBlks}`;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PCS ANALYSIS ENGINE
+═══════════════════════════════════════════════════════════════ */
+
+// Convert a 0-based day index to a real calendar date string for a bid month
+function calDate(mIdx, dIdx) {
+    const m = BID_MONTHS[mIdx];
+    const d = new Date(m.start);
+    d.setDate(m.start.getDate() + dIdx);
+    return `${MON_NAMES[d.getMonth()]} ${d.getDate()}`;
+}
+
+// Format a day-index range, dropping the month name on the end date if same month as start
+function calDateRange(mIdx, startIdx, endIdx) {
+    if (startIdx === endIdx) return calDate(mIdx, startIdx);
+    const m = BID_MONTHS[mIdx];
+    const s = new Date(m.start); s.setDate(m.start.getDate() + startIdx);
+    const e = new Date(m.start); e.setDate(m.start.getDate() + endIdx);
+    if (s.getMonth() === e.getMonth()) {
+        return `${MON_NAMES[s.getMonth()]} ${s.getDate()}–${e.getDate()}`;
+    }
+    return `${MON_NAMES[s.getMonth()]} ${s.getDate()}–${MON_NAMES[e.getMonth()]} ${e.getDate()}`;
+}
+
+function isWorkDay(code) {
+    return code === 'R' || code === 'CI';
+}
+
+function getWorkBlocks(days) {
+    const blocks = [];
+    let i = 0;
+    while (i < days.length) {
+        if (isWorkDay(days[i])) {
+            let j = i;
+            while (j < days.length && isWorkDay(days[j])) j++;
+            blocks.push({ start: i, end: j - 1, len: j - i });
+            i = j;
+        } else { i++; }
+    }
+    return blocks;
+}
+
+function getXBlocks(days) {
+    const blocks = [];
+    let i = 0;
+    while (i < days.length) {
+        if (days[i] === 'X') {
+            let j = i;
+            while (j < days.length && days[j] === 'X') j++;
+            blocks.push({ start: i, end: j - 1, len: j - i });
+            i = j;
+        } else { i++; }
+    }
+    return blocks;
+}
+
+function analyzePCSPair(mIdx, curr, des) {
+    const { minWork, maxXblocks } = getSettings();
+    const lastIdx = curr.length - 1;
+    const violations = [];
+    const advisories = [];
+    const p9AddedIVDOnR = new Set();
+    const fmi = BID_MONTHS[mIdx].firstMovableIdx;
+
+    // Freeze check: days before firstMovableIdx cannot differ between current and desired
+    for (let i = 0; i < fmi && i < curr.length; i++) {
+        if (curr[i] !== des[i]) {
+            return {
+                blocked: true,
+                blockedReason: `${calDate(mIdx, i)} cannot be changed. The deadline to move a day is 2200 ET four days prior.`,
+                violations: [],
+            };
+        }
+    }
+
+    // D2: X count must match
+    const currX = curr.filter(d => d === 'X').length;
+    const desX = des.filter(d => d === 'X').length;
+    if (currX !== desX) {
+        return {
+            blocked: true,
+            blockedReason: `X-day count mismatch: Current has ${currX}, Desired has ${desX}.`,
+            violations: [],
+        };
+    }
+
+    // D3: CI must be contiguous and touch the first day
+    const ciIndices = curr.reduce((a, d, i) => (d === 'CI' ? [...a, i] : a), []);
+    if (ciIndices.length > 0) {
+        if (curr[0] !== 'CI') {
+            return { blocked: true, blockedReason: 'Check CI day placement in current month', violations: [] };
+        }
+        for (let k = 1; k < ciIndices.length; k++) {
+            if (ciIndices[k] !== ciIndices[k - 1] + 1) {
+                return { blocked: true, blockedReason: 'Check CI day placement in current month', violations: [] };
+            }
+        }
+    }
+
+    // P12: R→X transitions on staffing-blocked dates (advisory only — stops further analysis)
+    const staffing = monthData[mIdx].staffing || [];
+    for (let i = 0; i <= lastIdx; i++) {
+        if (curr[i] === 'R' && des[i] === 'X' && staffing[i] === false) {
+            advisories.push({
+                rule: 'P12',
+                message: `${calDate(mIdx, i)}: Res Avail < Res Req... Moving this X day probably won't work. To continue, remove black day(s) and try again.`,
+            });
+        }
+    }
+    if (advisories.length > 0) {
+        return { blocked: false, violations: [], advisories, valid: false, summary: null };
+    }
+
+    // P2: X in desired can only land on days that were R in current (not A, CI, or CQ)
+    for (let i = 0; i <= lastIdx; i++) {
+        if (des[i] === 'X' && curr[i] !== 'X' && curr[i] !== 'R') {
+            violations.push({
+                rule: 'P2',
+                message: `${calDate(mIdx, i)}: X cannot be placed on a ${curr[i]} day`,
+            });
+        }
+
+        // P9: IVD may be newly placed only on days that are R in current.
+        if (des[i] === 'IVD' && curr[i] !== 'IVD') {
+            if (curr[i] === 'R') {
+                p9AddedIVDOnR.add(i);
+            } else {
+                violations.push({
+                    rule: 'P9',
+                    message: `${calDate(mIdx, i)}: IVD can only be newly placed on an R day`,
+                });
+            }
+        }
+    }
+
+    // P10: X days moved from a block must touch the first day, last day, or both ends.
+    // Allows one contiguous group (touching start or end) or two groups (one at each end).
+    // (implements contract section 8.a)
+    const currXBlocks = getXBlocks(curr);
+    for (const block of currXBlocks) {
+        const removedFromBlock = [];
+        for (let i = block.start; i <= block.end; i++) {
+            if (des[i] === 'R') removedFromBlock.push(i);
+        }
+        if (removedFromBlock.length === 0) continue;
+
+        // Split removed days into contiguous groups
+        const groups = [];
+        let gStart = 0;
+        for (let k = 1; k <= removedFromBlock.length; k++) {
+            if (k === removedFromBlock.length || removedFromBlock[k] !== removedFromBlock[k - 1] + 1) {
+                groups.push(removedFromBlock.slice(gStart, k));
+                gStart = k;
+            }
+        }
+
+        let p10Valid = false;
+        if (groups.length === 1) {
+            const g = groups[0];
+            if (g[0] === block.start || g[g.length - 1] === block.end) p10Valid = true;
+        } else if (groups.length === 2) {
+            const g1 = groups[0], g2 = groups[1];
+            if (g1[0] === block.start && g2[g2.length - 1] === block.end) p10Valid = true;
+        }
+
+        if (!p10Valid) {
+            violations.push({
+                rule: 'P10',
+                message: `${calDateRange(mIdx, block.start, block.end)}: Can only move the first day(s), last day(s), or the entire X-day block — not days from the middle`,
+            });
+        }
+    }
+
+    // Precompute opening conditions
+    let ciEndIdx = -1;
+    if (curr[0] === 'CI') {
+        ciEndIdx = 0;
+        while (ciEndIdx + 1 <= lastIdx && curr[ciEndIdx + 1] === 'CI') ciEndIdx++;
+    }
+
+    const currWorkBlocks = getWorkBlocks(curr);
+    const currOpenShort = (
+        currWorkBlocks.length > 0 &&
+        currWorkBlocks[0].start === 0 &&
+        currWorkBlocks[0].len < minWork
+    ) ? currWorkBlocks[0] : null;                  // P5: opening short block in current
+    const currStartsWithX = curr[0] === 'X';      // P6
+    const currStartsWithCI = curr[0] === 'CI';     // P7
+
+    // P3: Work blocks in desired must meet minWork (with exceptions)
+    const desWorkBlocks = getWorkBlocks(des);
+    for (const block of desWorkBlocks) {
+        if (block.len >= minWork) continue;
+
+        // E1: block touches the last day of the period
+        if (block.end === lastIdx) continue;
+
+        // E2: short block can remain short when it touches CQ/IVD and the matching
+        //     current short block also touched CQ/IVD.
+        const leftDay = block.start > 0 ? des[block.start - 1] : null;
+        const rightDay = block.end < lastIdx ? des[block.end + 1] : null;
+        const desiredTouchesCQorIVD =
+            leftDay === 'CQ' || rightDay === 'CQ' || leftDay === 'IVD' || rightDay === 'IVD';
+
+        if (desiredTouchesCQorIVD) {
+            const match = currWorkBlocks.find(b => b.start <= block.end && b.end >= block.start);
+            if (match && match.len < minWork) {
+                const currLeftNeighbor = match.start > 0 ? curr[match.start - 1] : null;
+                const currRightNeighbor = match.end < lastIdx ? curr[match.end + 1] : null;
+                const currentTouchesCQorIVD =
+                    currLeftNeighbor === 'CQ' || currRightNeighbor === 'CQ' ||
+                    currLeftNeighbor === 'IVD' || currRightNeighbor === 'IVD';
+                if (currentTouchesCQorIVD) continue;
+            }
+        }
+
+        // P9: if this short block is created by adding IVD on an R day next to it,
+        // it is allowed even if below minWork.
+        if (p9AddedIVDOnR.has(block.start - 1) || p9AddedIVDOnR.has(block.end + 1)) continue;
+
+        // P5: current opened with a short work block; desired short block overlaps original
+        if (currOpenShort) {
+            if (block.start <= currOpenShort.end && block.end >= currOpenShort.start) continue;
+        }
+
+        // P6: current opened with X days; a new short block may start at day 0
+        if (currStartsWithX && block.start === 0) continue;
+
+        // P7: current opened with CI
+        //   - a short block immediately following the CI block is allowed (adding R after CI)
+        //   - a block that is exactly the CI days is allowed (removing all R days that touched CI)
+        if (currStartsWithCI && ciEndIdx >= 0 && block.start === ciEndIdx + 1) continue;
+        if (currStartsWithCI && ciEndIdx >= 0 && block.start === 0 && block.end === ciEndIdx) continue;
+
+        violations.push({
+            rule: 'P3',
+            message: `${calDateRange(mIdx, block.start, block.end)}: ${block.len} day${block.len === 1 ? '' : 's'} on call is below the minimum on-call duration (${minWork}).`,
+        });
+    }
+
+    // maxXblocks: count of separate X-day runs in desired
+    const desXBlocks = getXBlocks(des);
+    if (desXBlocks.length > maxXblocks) {
+        violations.push({
+            rule: 'maxXblocks',
+            message: `Desired has ${desXBlocks.length} X-day block(s); maximum allowed is ${maxXblocks}`,
+        });
+    }
+
+    const adds = des.filter((d, i) => d === 'X' && curr[i] === 'R').length;
+    const removes = des.filter((d, i) => d === 'R' && curr[i] === 'X').length;
+
+    return {
+        blocked: false,
+        violations,
+        advisories,
+        valid: violations.length === 0 && advisories.length === 0,
+        summary: { adds, removes, xBlockCount: desXBlocks.length },
+    };
+}
+
+function analyzePCS(mIdx) {
+    const curr = monthData[mIdx].current;
+    const des = monthData[mIdx].desired;
+    return analyzePCSPair(mIdx, curr, des);
+}
+
+function getXMovePairs(curr, des, fmi = 0) {
+    const removed = [];
+    const added = [];
+    curr.forEach((code, i) => {
+        if (i < fmi) return;
+        if (code === 'X' && des[i] === 'R') removed.push(i);
+        if (code === 'R' && des[i] === 'X') added.push(i);
+    });
+    return { removed, added };
+}
+
+function applyXMovesOnly(curr, des, fmi = 0) {
+    const next = [...curr];
+    const { removed, added } = getXMovePairs(curr, des, fmi);
+    removed.forEach(i => { next[i] = 'R'; });
+    added.forEach(i => { next[i] = 'X'; });
+    return next;
+}
+
+function getIVDChangeIndices(curr, des) {
+    const idxs = [];
+    for (let i = 0; i < curr.length; i++) {
+        if (curr[i] === des[i]) continue;
+        if (curr[i] === 'IVD' || des[i] === 'IVD') idxs.push(i);
+    }
+    return idxs;
+}
+
+function applyIVDOnly(curr, des) {
+    const next = [...curr];
+    getIVDChangeIndices(curr, des).forEach(i => {
+        next[i] = des[i];
+    });
+    return next;
+}
+
+function findTwoStepPCSPlans(mIdx) {
+    const curr = monthData[mIdx].current;
+    const des = monthData[mIdx].desired;
+    const diffIdxs = curr.map((v, i) => (v === des[i] ? -1 : i)).filter(i => i >= 0);
+
+    if (diffIdxs.length === 0) return [];
+
+    const fmi = BID_MONTHS[mIdx].firstMovableIdx;
+    const ivdIdxs = getIVDChangeIndices(curr, des);
+    const { removed, added } = getXMovePairs(curr, des, fmi);
+    const hasXMoves = removed.length > 0 || added.length > 0;
+    const onlyXOrIVD = diffIdxs.every(i => {
+        const c = curr[i], d = des[i];
+        if ((c === 'X' && d === 'R') || (c === 'R' && d === 'X')) return true;
+        if (c === 'IVD' || d === 'IVD') return true;
+        return false;
+    });
+
+    if (!hasXMoves || ivdIdxs.length === 0 || !onlyXOrIVD) return [];
+
+    const plans = [];
+
+    const xThenIvdStep1 = applyXMovesOnly(curr, des, fmi);
+    const xThenIvdStep2 = applyIVDOnly(xThenIvdStep1, des);
+    const xThenIvdA1 = analyzePCSPair(mIdx, curr, xThenIvdStep1);
+    const xThenIvdA2 = analyzePCSPair(mIdx, xThenIvdStep1, xThenIvdStep2);
+    if (!xThenIvdA1.blocked && xThenIvdA1.valid && !xThenIvdA2.blocked && xThenIvdA2.valid &&
+        xThenIvdStep2.every((v, i) => v === des[i])) {
+        plans.push({ order: 'X_THEN_IVD' });
+    }
+
+    const ivdThenXStep1 = applyIVDOnly(curr, des);
+    const ivdThenXStep2 = applyXMovesOnly(ivdThenXStep1, des, fmi);
+    const ivdThenXA1 = analyzePCSPair(mIdx, curr, ivdThenXStep1);
+    const ivdThenXA2 = analyzePCSPair(mIdx, ivdThenXStep1, ivdThenXStep2);
+    if (!ivdThenXA1.blocked && ivdThenXA1.valid && !ivdThenXA2.blocked && ivdThenXA2.valid &&
+        ivdThenXStep2.every((v, i) => v === des[i])) {
+        plans.push({ order: 'IVD_THEN_X' });
+    }
+
+    return plans;
+}
+
+// Format X-day moves between two schedules as a human-readable string.
+function formatXMovePairs(mIdx, from, to) {
+    const fmi = BID_MONTHS[mIdx].firstMovableIdx;
+    const removedIdx = [], addedIdx = [];
+    from.forEach((code, i) => {
+        if (i < fmi) return;
+        if (code === 'X' && to[i] === 'R') removedIdx.push(i);
+        if (code === 'R' && to[i] === 'X') addedIdx.push(i);
+    });
+    if (removedIdx.length === 0) return 'No X-day moves';
+
+    const groups = [];
+    removedIdx.forEach((r, k) => {
+        const t = addedIdx[k];
+        const last = groups[groups.length - 1];
+        if (last && r === last.fromEnd + 1 && t === last.toEnd + 1) {
+            last.fromEnd = r; last.toEnd = t;
+        } else {
+            groups.push({ fromStart: r, fromEnd: r, toStart: t, toEnd: t });
+        }
+    });
+    return groups.map(g =>
+        `${calDateRange(mIdx, g.fromStart, g.fromEnd)} → ${calDateRange(mIdx, g.toStart, g.toEnd)}`
+    ).join(', ');
+}
+
+// Search for a valid two-step plan when the direct X-day move violates P10.
+// Enumerates intermediate states within the union of current and desired X positions.
+function findTwoStepXMovePlans(mIdx) {
+    const curr = monthData[mIdx].current;
+    const des = monthData[mIdx].desired;
+
+    // This function handles pure X-move splits only (IVD splits handled separately).
+    if (getIVDChangeIndices(curr, des).length > 0) return [];
+
+    const fmi = BID_MONTHS[mIdx].firstMovableIdx;
+    const { removed, added } = getXMovePairs(curr, des, fmi);
+    if (removed.length === 0) return [];
+
+    // Build the union of movable X positions (i >= fmi) across current and desired.
+    // Past X positions are frozen and excluded from the search space.
+    const currXPos = curr.reduce((a, v, i) => (v === 'X' && i >= fmi ? [...a, i] : a), []);
+    const desXPos = des.reduce((a, v, i) => (v === 'X' && i >= fmi ? [...a, i] : a), []);
+    const unionX = [...new Set([...currXPos, ...desXPos])].sort((a, b) => a - b);
+    const xCount = currXPos.length;
+    const omitCount = unionX.length - xCount; // how many union positions to leave out of the intermediate
+
+    if (omitCount <= 0) return []; // no flexibility; union = current X positions
+
+    // Estimate C(unionX.length, omitCount) to guard against combinatorial explosion.
+    function comb(n, k) {
+        if (k <= 0) return 1;
+        if (k >= n) return k === n ? 1 : 0;
+        k = Math.min(k, n - k);
+        let r = 1;
+        for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+        return Math.round(r);
+    }
+    if (comb(unionX.length, omitCount) > 100000) return [];
+
+    // Build a candidate intermediate schedule from a chosen set of movable X positions.
+    // Days before fmi are frozen to their current value.
+    function buildMid(midXSet) {
+        return curr.map((v, i) => {
+            if (i < fmi) return v; // past days are frozen
+            if (v === 'X' && !midXSet.has(i)) return 'R';
+            if (v === 'R' && midXSet.has(i)) return 'X';
+            return v; // CI, CQ, A, IVD unchanged
+        });
+    }
+
+    const plans = [];
+
+    // Natural-split pre-pass: try suffix/prefix splits of each movable X block first.
+    // These produce human-readable descriptions ("move last N days of block → destination,
+    // then place remaining day"). General enumeration fills any slots left after this.
+    const unionXSet = new Set(unionX);
+    function tryCandidate(omittedPositions) {
+        if (plans.length >= 3) return;
+        if (!omittedPositions.every(i => unionXSet.has(i))) return;
+        const omittedSet = new Set(omittedPositions);
+        const midXSet = new Set(unionX.filter(i => !omittedSet.has(i)));
+        const mid = buildMid(midXSet);
+        const a1 = analyzePCSPair(mIdx, curr, mid);
+        if (!a1.blocked && a1.valid) {
+            const a2 = analyzePCSPair(mIdx, mid, des);
+            if (!a2.blocked && a2.valid) {
+                if (!plans.some(p => p.mid.every((v, i) => v === mid[i]))) {
+                    plans.push({ mid });
+                }
+            }
+        }
+    }
+
+    for (const block of getXBlocks(curr)) {
+        if (plans.length >= 3) break;
+        const movableLen = block.end - Math.max(block.start, fmi) + 1;
+        if (movableLen <= 0) continue;
+
+        // Suffix: last omitCount days of the block (must all be movable)
+        if (omitCount <= movableLen) {
+            const suffix = [];
+            for (let i = block.end - omitCount + 1; i <= block.end; i++) suffix.push(i);
+            tryCandidate(suffix);
+        }
+
+        // Prefix: first omitCount days of the block (only if block starts after fmi)
+        if (omitCount <= block.len && block.start >= fmi) {
+            const prefix = [];
+            for (let i = block.start; i < block.start + omitCount; i++) prefix.push(i);
+            tryCandidate(prefix);
+        }
+    }
+
+    // General enumeration fills remaining plan slots with any other valid splits.
+    const omitted = [];
+    function enumerate(start) {
+        if (plans.length >= 3) return;
+        if (omitted.length === omitCount) {
+            const omittedSet = new Set(omitted);
+            const midXSet = new Set(unionX.filter(i => !omittedSet.has(i)));
+            const mid = buildMid(midXSet);
+            const a1 = analyzePCSPair(mIdx, curr, mid);
+            if (!a1.blocked && a1.valid) {
+                const a2 = analyzePCSPair(mIdx, mid, des);
+                if (!a2.blocked && a2.valid) {
+                    if (!plans.some(p => p.mid.every((v, i) => v === mid[i]))) {
+                        plans.push({ mid });
+                    }
+                }
+            }
+            return;
+        }
+
+        const needed = omitCount - omitted.length;
+        for (let i = start; i <= unionX.length - needed; i++) {
+            omitted.push(unionX[i]);
+            enumerate(i + 1);
+            omitted.pop();
+        }
+    }
+
+    enumerate(0);
+    return plans;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDER PCS PANEL
+═══════════════════════════════════════════════════════════════ */
+function renderPCSPanel() {
+    const el = document.getElementById('d-pcs-content');
+    if (!el) return;
+    try {
+        el.innerHTML = buildPCSHTML(currentIdx);
+    } catch (err) {
+        console.error('Failed to render PCS panel', err);
+        el.innerHTML = `<div class="pcs-status-bar warning">
+    <span class="pcs-status-icon">⚠</span>
+    <span>Unable to render PCS analysis right now. Try reloading the page.</span>
+</div>`;
+    }
+}
+
+function buildPCSHTML(mIdx) {
+    const curr = monthData[mIdx].current;
+    const des = monthData[mIdx].desired;
+    const m = BID_MONTHS[mIdx];
+    const result = analyzePCS(mIdx);
+
+    if (result.blocked) {
+        return `<div class="pcs-status-bar warning">
+    <span class="pcs-status-icon">⚠</span>
+    <span>${escapeHTML(result.blockedReason)}</span>
+</div>`;
+    }
+
+    // Build X Day Moves list
+    const monName = m.name.split(' ')[0];
+    const toCalDay = dIdx => { const d = new Date(m.start); d.setDate(m.start.getDate() + dIdx); return d.getDate(); };
+
+    // Use day indices (not .getDate() numbers) so cross-month runs merge and format correctly.
+    // Only include movable days (i >= fmi); frozen past days are never displayed as moves.
+    const fmi = m.firstMovableIdx;
+    const removedIdx = [], addedIdx = [];
+    curr.forEach((code, i) => {
+        if (i < fmi) return;
+        if (code === 'X' && des[i] === 'R') removedIdx.push(i);
+        if (code === 'R' && des[i] === 'X') addedIdx.push(i);
+    });
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const isCurrentBidPeriod = today >= m.start && today <= m.end;
+    const isD10Window = today.getDate() >= 11 && today.getDate() <= 17;
+    const hasXMove = removedIdx.length > 0 || addedIdx.length > 0;
+    const d10CautionHTML = (isCurrentBidPeriod && isD10Window && hasXMove)
+        ? `<div class="pcs-status-bar warning">
+    <span class="pcs-status-icon">⚠</span>
+    <span>Caution: During the PBS bid award process, a request to move an X-day into or out of the last six days of the current bid period will not be granted.</span>
+</div>`
+        : '';
+
+    let changesHTML = '';
+    if (removedIdx.length === 0) {
+        changesHTML = `<div class="pcs-no-path">No changes from current schedule.</div>`;
+    } else {
+        // Pair 1:1 chronologically, then merge runs where both source and dest advance by 1 together
+        const groups = [];
+        removedIdx.forEach((r, k) => {
+            const t = addedIdx[k];
+            const last = groups[groups.length - 1];
+            if (last && r === last.fromEnd + 1 && t === last.toEnd + 1) {
+                last.fromEnd = r; last.toEnd = t;
+            } else {
+                groups.push({ fromStart: r, fromEnd: r, toStart: t, toEnd: t });
+            }
+        });
+        const steps = groups.map(g =>
+            `<div class="pcs-step"><div class="pcs-step-text">${calDateRange(mIdx, g.fromStart, g.fromEnd)} → ${calDateRange(mIdx, g.toStart, g.toEnd)}</div></div>`
+        ).join('');
+        changesHTML = `
+    <div class="pcs-steps-header">X Day Moves</div>
+    <div class="pcs-steps">${steps}</div>`;
+    }
+
+    const ivdChangedDays = [];
+    curr.forEach((code, i) => {
+        if (code === 'R' && des[i] === 'IVD') ivdChangedDays.push(toCalDay(i));
+    });
+    const ivdLabel = ivdChangedDays.map(d => `${monName} ${d}`).join(', ');
+    const ivdPlacementsHTML = ivdChangedDays.length === 0
+        ? ''
+        : `<div class="pcs-steps-header">IVD Placements</div>
+   <div class="pcs-steps">
+     ${ivdChangedDays.map(d => `<div class="pcs-step"><div class="pcs-step-text">Place IVD on ${monName} ${d}</div></div>`).join('')}
+   </div>`;
+
+    const advisoriesHTML = result.advisories && result.advisories.length > 0
+        ? `<div class="pcs-violations">${result.advisories.map(a => `<div class="pcs-advisory">${escapeHTML(a.message)}</div>`).join('')}</div>`
+        : '';
+
+    if (result.valid) {
+        return `<div class="pcs-status-bar legal">
+    <span class="pcs-status-icon">✓</span>
+    <span>Desired schedule is valid</span>
+</div>
+${advisoriesHTML}
+${d10CautionHTML}
+${changesHTML}
+${ivdPlacementsHTML}`;
+    }
+
+    const twoStepPlans = findTwoStepPCSPlans(mIdx);
+    if (twoStepPlans.length > 0) {
+        const cards = twoStepPlans.map((plan, idx) => {
+            const step1 = plan.order === 'X_THEN_IVD'
+                ? 'Run 1: Apply X-day move(s).'
+                : `Run 1: Apply IVD change(s)${ivdLabel ? ` (${ivdLabel})` : ''}.`;
+            const step2 = plan.order === 'X_THEN_IVD'
+                ? `Run 2: Apply IVD change(s)${ivdLabel ? ` (${ivdLabel})` : ''}.`
+                : 'Run 2: Apply X-day move(s).';
+            return `<div class="pcs-step">
+        <div class="pcs-step-num">${idx + 1}</div>
+        <div class="pcs-step-text">
+            <div><b>Option ${idx + 1}</b></div>
+            <div class="pcs-step-note">${step1}</div>
+            <div class="pcs-step-note">${step2}</div>
+        </div>
+    </div>`;
+        }).join('');
+
+        return `<div class="pcs-status-bar legal">
+    <span class="pcs-status-icon">✓</span>
+    <span>Desired schedule is reachable in 2 PCS runs.</span>
+</div>
+${advisoriesHTML}
+${d10CautionHTML}
+<div class="pcs-steps-header">Two-Run PCS Options</div>
+<div class="pcs-steps">${cards}</div>
+${ivdPlacementsHTML}`;
+    }
+
+    // P11: Try splitting into two X-move PCS runs (handles P10 middle-block violations)
+    const twoStepXPlans = findTwoStepXMovePlans(mIdx);
+    if (twoStepXPlans.length > 0) {
+        const cards = twoStepXPlans.map((plan, idx) => {
+            const step1Desc = formatXMovePairs(mIdx, curr, plan.mid);
+            const step2Desc = formatXMovePairs(mIdx, plan.mid, des);
+            return `<div class="pcs-step">
+        <div class="pcs-step-num">${idx + 1}</div>
+        <div class="pcs-step-text">
+            <div><b>Option ${idx + 1}</b></div>
+            <div class="pcs-step-note">Run 1: ${step1Desc}</div>
+            <div class="pcs-step-note">Run 2: ${step2Desc}</div>
+        </div>
+    </div>`;
+        }).join('');
+
+        return `<div class="pcs-status-bar legal">
+    <span class="pcs-status-icon">✓</span>
+    <span>Desired schedule is reachable in 2 PCS runs.</span>
+</div>
+${advisoriesHTML}
+${d10CautionHTML}
+<div class="pcs-steps-header">Two-Run PCS Options</div>
+<div class="pcs-steps">${cards}</div>`;
+    }
+
+    const violationsHTML = result.violations.length > 0
+        ? `<div class="pcs-violations">${result.violations.map(v => `<div class="pcs-violation">${escapeHTML(v.message)}</div>`).join('')}</div>`
+        : '';
+    const statusBar = result.violations.length > 0
+        ? `<div class="pcs-status-bar illegal"><span class="pcs-status-icon">✗</span><span>${result.violations.length} violation(s) found</span></div>`
+        : '';
+
+    return `${statusBar}
+    ${advisoriesHTML}
+    ${violationsHTML}
+    ${ivdPlacementsHTML}`;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   GO
+═══════════════════════════════════════════════════════════════ */
+const SUPABASE_URL = 'https://sowczbjrrqazotbqpzrr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_-wiDJ-bZPss16vIOL_HLrA_L5SJfuyH';
+const _supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Register auth listener immediately so no events are missed.
+_supa.auth.onAuthStateChange(async (event, session) => {
+    _session = session;
+    renderAuthUI();
+});
+
+function renderAuthUI() {
+    const loggedIn = !!_session;
+    const dContent = loggedIn
+        ? `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;word-break:break-all">${_session.user.email}</div>
+           <button class="btn" onclick="signOut()">Sign Out</button>`
+        : `<input type="email" id="d-auth-email" placeholder="your@email.com"
+               style="width:100%;margin-bottom:8px;padding:8px;border-radius:6px">
+           <button class="btn" onclick="sendMagicLink('d')">Send Magic Link</button>
+           <div id="d-auth-msg" style="margin-top:8px;font-size:0.8rem;color:var(--text-muted)"></div>`;
+    const mContent = loggedIn
+        ? `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;word-break:break-all">${_session.user.email}</div>
+           <button class="btn" onclick="signOut()">Sign Out</button>`
+        : `<input type="email" id="m-auth-email" placeholder="your@email.com"
+               style="width:100%;margin-bottom:8px;padding:8px;border-radius:6px">
+           <button class="btn" onclick="sendMagicLink('m')">Send Magic Link</button>
+           <div id="m-auth-msg" style="margin-top:8px;font-size:0.8rem;color:var(--text-muted)"></div>`;
+    const dEl = document.getElementById('d-auth-content');
+    const mEl = document.getElementById('m-auth-content');
+    if (dEl) dEl.innerHTML = dContent;
+    if (mEl) mEl.innerHTML = mContent;
+}
+
+async function sendMagicLink(prefix) {
+    const emailEl = document.getElementById(prefix + '-auth-email');
+    const msgEl = document.getElementById(prefix + '-auth-msg');
+    const email = emailEl ? emailEl.value.trim() : '';
+    if (!email) { if (msgEl) msgEl.textContent = 'Enter an email address.'; return; }
+    if (msgEl) msgEl.textContent = 'Sending…';
+    const { error } = await _supa.auth.signInWithOtp({ email });
+    if (msgEl) msgEl.textContent = error ? 'Error: ' + error.message : 'Magic link sent! Check your email.';
+}
+
+async function signOut() {
+    await _supa.auth.signOut();
+}
+
+async function start() {
+    const { data: { session } } = await _supa.auth.getSession();
+    _session = session;
+    renderAuthUI();
+    try {
+        await init();
+    } catch (err) {
+        console.error('Application startup failed', err);
+        const dContent = document.getElementById('d-pcs-content');
+        if (dContent) {
+            dContent.innerHTML = `<div class="pcs-status-bar warning">
+    <span class="pcs-status-icon">⚠</span>
+    <span>App startup failed. Refresh the page to recover.</span>
+</div>`;
+        }
+        const mPanel = document.getElementById('m-panel-curr');
+        if (mPanel) {
+            mPanel.innerHTML = `<div class="m-changes-card">
+    <div class="changes-empty">App startup failed. Refresh the page to recover.</div>
+</div>`;
+        }
+    }
+}
+
+start();
