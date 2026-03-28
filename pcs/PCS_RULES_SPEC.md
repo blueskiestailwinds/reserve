@@ -55,12 +55,14 @@ Display rules:
   - If the analysis results in an error and that individual error contains dates in the same months, drop the month name on the second date.
   - example: "March 2–March 3: 2 days on call is below the minimum on-call duration (4)" should be "March 2-3: 2 days on call is below the minimum on-call duration (4)."
 - Rule D9: Frozen-day mismatch blocks analysis entirely.
-  - The earliest movable day is D+2 (two calendar days from today). Days before that index are frozen.
+  - The submission deadline for any given day is 2200 ET, four calendar days prior to that day.
+  - Between 0000–2159 ET: the earliest movable day is D+4. Days D+0 through D+3 are frozen.
+  - Between 2200–2359 ET: the earliest movable day is D+5. Days D+0 through D+4 are frozen.
   - If any frozen day differs between current and desired, raise a blocked failure immediately — do not run any pathfinding or validation checks.
   - Prevents analyzer from running
-  - fails when: desired differs from current on any day before D+2
-  - passes when: all days before D+2 are identical between current and desired
-  - UI message: "{date} cannot be changed — it is within the 2-day submission window."
+  - fails when: desired differs from current on any frozen day
+  - passes when: all frozen days are identical between current and desired
+  - UI message: "{date} cannot be changed. The deadline to move a day is 2200 ET four days prior."
 - Rule D10: If the pathfinder solution requires adding or removing an X day in the current bid period and the current date is the 11th through the 17th, add a caution warning in yellow with the pathfinder result.
   - example: Today is March 12. The pathfinder solution requires moving an X day from March 29 to March 27. Assume the move is legal for all other rules. Because today is between the 11th and 17th and the current bid period is March 2 - March 31, any moves between March 26 and March 31 may not be allowed immediately. Do not stop the pathfinder. This is cautionary only.
 

@@ -1482,6 +1482,18 @@
         /* ═══════════════════════════════════════════════════════════════
            DATA
         ═══════════════════════════════════════════════════════════════ */
+        function stampFirstMovableIdx(months) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight local
+            // 2200 ET cutoff: once past 2200 ET, the D+4 day locks and the window shifts to D+5.
+            const etHour = parseInt(now.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'America/New_York' }), 10);
+            const movableDayOffset = etHour >= 22 ? 5 : 4;
+            months.forEach(m => {
+                const todayOffset = Math.round((today - m.start) / 86400000);
+                m.firstMovableIdx = Math.min(m.dayCount, Math.max(0, todayOffset + movableDayOffset));
+            });
+        }
+
         function generateBidMonths() {
             const months = [];
             const now = new Date();
@@ -1708,7 +1720,10 @@
 
             // 1. Try to load custom bid periods from Supabase (anon-readable).
             const supaMonths = await loadBidMonthsFromSupabase();
-            if (supaMonths) BID_MONTHS = supaMonths;
+            if (supaMonths) {
+                stampFirstMovableIdx(supaMonths);
+                BID_MONTHS = supaMonths;
+            }
 
             // 2. Load schedule data
             if (_session) {
