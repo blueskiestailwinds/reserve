@@ -182,10 +182,6 @@
             max-width: 420px;
         }
 
-        #status-section[open] summary::before {
-            transform: rotate(90deg);
-        }
-
         .status-card {
             background: var(--card-bg);
             border: 1px solid var(--border);
@@ -401,7 +397,6 @@
                 'Last checked: ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        // Run when the details element is opened
         runChecks();
     </script>
 </body>
