@@ -380,7 +380,7 @@ function updateDayCell(mIdx, dIdx) {
         ['X', 'R', 'A', 'C', 'CQ', 'CI', 'Z'].forEach(c => el.classList.remove(c));
         el.classList.add(code);
         const codeEl = el.querySelector('.day-code');
-        if (codeEl) codeEl.textContent = code;
+        if (codeEl) codeEl.textContent = code === 'Z' ? 'X' : code;
     });
 }
 
@@ -496,7 +496,7 @@ function buildGridHTML(idx, isSide, gridClass) {
         const illegal = !isSide && illegalIndices.has(dIdx) ? ' illegal' : '';
         html += `<div class="day ${code}${illegal}" data-midx="${idx}" data-didx="${dIdx}">
     <span class="day-num">${date.getDate()}</span>
-    <span class="day-code">${code}</span>
+    <span class="day-code">${code === 'Z' ? 'X' : code}</span>
 </div>`;
     });
     return `<div class="${gridClass}">${html}</div>`;

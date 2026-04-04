@@ -69,8 +69,8 @@ body {
 
 .day.Z,
 .brush.Z {
-  background: var(--z-red);
-  color: white;
+  background: var(--x-green);
+  color: var(--z-red);
 }
 
 .brush {
