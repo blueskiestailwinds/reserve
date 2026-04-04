@@ -8,6 +8,7 @@
   --a-gray: #4b5563;
   --c-purple: #9333ea;
   --cq-orange: #ea580c;
+  --z-red: #dc2626;
   --error: #ef4444;
   --bg: #131314;
   --card-bg: #1e1f20;
@@ -63,6 +64,12 @@ body {
 .day.CI,
 .brush.CI {
   background: #334155;
+  color: white;
+}
+
+.day.Z,
+.brush.Z {
+  background: var(--z-red);
   color: white;
 }
 

@@ -377,7 +377,7 @@ function updateDayCell(mIdx, dIdx) {
     const sel = `.day[data-midx="${mIdx}"][data-didx="${dIdx}"]`;
     document.querySelectorAll(sel).forEach(el => {
         // Remove all code classes, add new one
-        ['X', 'R', 'A', 'C', 'CQ', 'CI'].forEach(c => el.classList.remove(c));
+        ['X', 'R', 'A', 'C', 'CQ', 'CI', 'Z'].forEach(c => el.classList.remove(c));
         el.classList.add(code);
         const codeEl = el.querySelector('.day-code');
         if (codeEl) codeEl.textContent = code;
@@ -414,7 +414,7 @@ function validateAll() {
     const currDays = monthData[currentIdx].days;
 
     const availCount = currDays.filter(d => d !== 'A').length;
-    const xUsed = currDays.filter(d => d === 'X').length;
+    const xUsed = currDays.filter(d => d === 'X' || d === 'Z').length;
     const lookup = PRORATION_LOOKUP[m.dayCount.toString()];
     const baseReq = lookup ? (lookup[s.alv][availCount] || 0) : 0;
     const xReq = baseReq + (s.extraX ? 1 : 0);
