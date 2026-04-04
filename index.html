@@ -36,7 +36,6 @@
             filter: blur(3px) grayscale(40%);
             z-index: -1;
             transform: scale(1.04);
-            /* hide blur edges */
         }
 
         h1 {
@@ -175,16 +174,128 @@
         .hidden {
             display: none !important;
         }
+
+        /* ── Status Section ── */
+        #status-section {
+            margin-top: 1.5rem;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        #status-section summary {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            justify-content: center;
+        }
+
+        #status-section summary::-webkit-details-marker {
+            display: none;
+        }
+
+        #status-section summary::before {
+            content: '▸';
+            font-size: 0.65rem;
+            transition: transform 0.2s;
+        }
+
+        #status-section[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .status-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-top: 0.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+
+        .status-label {
+            color: var(--text-muted);
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 99px;
+            border: 1px solid transparent;
+        }
+
+        .status-pill.checking {
+            color: var(--text-muted);
+            border-color: var(--border);
+        }
+
+        .status-pill.up {
+            color: #4ade80;
+            background: rgba(21, 128, 61, 0.15);
+            border-color: rgba(21, 128, 61, 0.4);
+        }
+
+        .status-pill.down {
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-dot.pulse {
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        .status-footer {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: right;
+            padding-top: 0.25rem;
+            border-top: 1px solid var(--border);
+        }
     </style>
 </head>
 
 <body>
     <h1>Reserve Schedule Tools</h1>
 
-    <!-- Tool grid — always visible -->
     <div class="tool-grid">
 
-        <!-- Login card — shown when signed out -->
         <div id="login-view" class="login-card hidden">
             <p>Sign in to sync your schedules across devices. No password — we'll email you a magic link.</p>
             <p>You can proceed to the apps below without logging in. No data will be saved.</p>
@@ -193,7 +304,6 @@
             <div id="auth-msg"></div>
         </div>
 
-        <!-- User bar — shown when signed in -->
         <div id="user-bar" class="hidden">
             <span id="user-email"></span>
             <button onclick="signOut()">Sign Out</button>
@@ -214,7 +324,28 @@
                 <span class="desc">PCS Strategery</span>
             </div>
         </a>
+
     </div>
+
+    <!-- Status Section -->
+    <details id="status-section">
+        <summary>service status</summary>
+        <div class="status-card">
+            <div class="status-row">
+                <span class="status-label">App (GitHub Pages)</span>
+                <span class="status-pill checking" id="pill-ghp">
+                    <span class="status-dot pulse"></span>checking
+                </span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Database (Supabase)</span>
+                <span class="status-pill checking" id="pill-supa">
+                    <span class="status-dot pulse"></span>checking
+                </span>
+            </div>
+            <div class="status-footer" id="status-time"></div>
+        </div>
+    </details>
 
     <script>
         const SUPABASE_URL = 'https://sowczbjrrqazotbqpzrr.supabase.co';
@@ -231,7 +362,6 @@
         }
 
         _supa.auth.onAuthStateChange((_event, session) => renderAuth(session));
-
         _supa.auth.getSession().then(({ data: { session } }) => renderAuth(session));
 
         async function sendMagicLink() {
@@ -247,6 +377,57 @@
         async function signOut() {
             await _supa.auth.signOut();
         }
+
+        // ── Status checks ──
+        function setPill(id, state) {
+            const pill = document.getElementById(id);
+            pill.className = 'status-pill ' + state;
+            const dot = document.createElement('span');
+            dot.className = 'status-dot';
+            const label = state === 'checking' ? 'checking'
+                : state === 'up' ? 'operational'
+                    : 'unavailable';
+            pill.innerHTML = '';
+            pill.appendChild(dot);
+            pill.appendChild(document.createTextNode(label));
+        }
+
+        async function checkGHP() {
+            try {
+                const res = await fetch('https://reserve.blueskiestailwinds.com/', {
+                    method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(6000)
+                });
+                setPill('pill-ghp', res.ok ? 'up' : 'down');
+            } catch {
+                setPill('pill-ghp', 'down');
+            }
+        }
+
+        async function checkSupabase() {
+            try {
+                const { error } = await _supa
+                    .from('month_instances')
+                    .select('id')
+                    .limit(1);
+                setPill('pill-supa', error ? 'down' : 'up');
+            } catch {
+                setPill('pill-supa', 'down');
+            }
+        }
+
+        async function runChecks() {
+            setPill('pill-ghp', 'checking');
+            setPill('pill-supa', 'checking');
+            await Promise.all([checkGHP(), checkSupabase()]);
+            const now = new Date();
+            document.getElementById('status-time').textContent =
+                'Last checked: ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Run when the details element is opened
+        document.getElementById('status-section').addEventListener('toggle', function () {
+            if (this.open) runChecks();
+        });
     </script>
 </body>
 
