@@ -187,6 +187,7 @@
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 1rem 1.25rem;
+            margin-top: 0.6rem;
             display: flex;
             flex-direction: column;
             gap: 0.6rem;
@@ -300,16 +301,17 @@
 
     </div>
 
+    <!-- Status Section -->
     <div id="status-section">
         <div class="status-card">
             <div class="status-row">
-                <span class="status-label">App (GitHub Pages)</span>
+                <span class="status-label">App</span>
                 <span class="status-pill checking" id="pill-ghp">
                     <span class="status-dot pulse"></span>checking
                 </span>
             </div>
             <div class="status-row">
-                <span class="status-label">Database (Supabase)</span>
+                <span class="status-label">Database</span>
                 <span class="status-pill checking" id="pill-supa">
                     <span class="status-dot pulse"></span>checking
                 </span>
@@ -327,7 +329,9 @@
             const loggedIn = !!session;
             document.getElementById('login-view').classList.toggle('hidden', loggedIn);
             document.getElementById('user-bar').classList.toggle('hidden', !loggedIn);
-            if (loggedIn) document.getElementById('user-email').textContent = session.user.email;
+            if (loggedIn) {
+                document.getElementById('user-email').textContent = session.user.email;
+            }
         }
 
         _supa.auth.onAuthStateChange((_event, session) => renderAuth(session));
@@ -343,7 +347,9 @@
             msgEl.textContent = error ? 'Error: ' + error.message : 'Magic link sent! Check your email.';
         }
 
-        async function signOut() { await _supa.auth.signOut(); }
+        async function signOut() {
+            await _supa.auth.signOut();
+        }
 
         // ── Status checks ──
         function setPill(id, state) {
@@ -351,25 +357,27 @@
             pill.className = 'status-pill ' + state;
             const dot = document.createElement('span');
             dot.className = 'status-dot';
-            const label = state === 'checking' ? 'checking' : state === 'up' ? 'operational' : 'unavailable';
+            const label = state === 'checking' ? 'checking'
+                : state === 'up' ? 'operational'
+                    : 'unavailable';
             pill.innerHTML = '';
             pill.appendChild(dot);
             pill.appendChild(document.createTextNode(label));
         }
 
-        function imgCheck(url) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.src = url + '?nc=' + Date.now();
-                img.onload = () => resolve(true);
-                img.onerror = () => resolve(false);
-                setTimeout(() => resolve(false), 6000);
-            });
-        }
-
         async function checkGHP() {
-            const ok = await imgCheck('https://reserve.blueskiestailwinds.com/favicon.png');
-            setPill('pill-ghp', ok ? 'up' : 'down');
+            try {
+                const img = new Image();
+                img.src = 'https://reserve.blueskiestailwinds.com/favicon.png?nc=' + Date.now();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    setTimeout(reject, 6000);
+                });
+                setPill('pill-ghp', 'up');
+            } catch {
+                setPill('pill-ghp', 'down');
+            }
         }
 
         async function checkSupabase() {
@@ -393,7 +401,6 @@
                 'Last checked: ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
-        // Run on page load
         runChecks();
     </script>
 </body>
