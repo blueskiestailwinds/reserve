@@ -182,28 +182,6 @@
             max-width: 420px;
         }
 
-        #status-section summary {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            cursor: pointer;
-            user-select: none;
-            list-style: none;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            justify-content: center;
-        }
-
-        #status-section summary::-webkit-details-marker {
-            display: none;
-        }
-
-        #status-section summary::before {
-            content: '▸';
-            font-size: 0.65rem;
-            transition: transform 0.2s;
-        }
-
         #status-section[open] summary::before {
             transform: rotate(90deg);
         }
