@@ -367,10 +367,14 @@
 
         async function checkGHP() {
             try {
-                const res = await fetch('https://reserve.blueskiestailwinds.com/', {
-                    method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(6000)
+                const img = new Image();
+                img.src = 'https://reserve.blueskiestailwinds.com/favicon.png?nc=' + Date.now();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    setTimeout(reject, 6000);
                 });
-                setPill('pill-ghp', res.ok ? 'up' : 'down');
+                setPill('pill-ghp', 'up');
             } catch {
                 setPill('pill-ghp', 'down');
             }
