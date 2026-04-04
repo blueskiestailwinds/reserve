@@ -328,8 +328,7 @@
     </div>
 
     <!-- Status Section -->
-    <details id="status-section">
-        <summary>service status</summary>
+    <div id="status-section">
         <div class="status-card">
             <div class="status-row">
                 <span class="status-label">App (GitHub Pages)</span>
@@ -345,7 +344,7 @@
             </div>
             <div class="status-footer" id="status-time"></div>
         </div>
-    </details>
+    </div>
 
     <script>
         const SUPABASE_URL = 'https://sowczbjrrqazotbqpzrr.supabase.co';
@@ -425,9 +424,7 @@
         }
 
         // Run when the details element is opened
-        document.getElementById('status-section').addEventListener('toggle', function () {
-            if (this.open) runChecks();
-        });
+        runChecks();
     </script>
 </body>
 
