@@ -1,3 +1,4 @@
+// /home/brian/myapps/reserve/pbs/pbs.js
 /* ═══════════════════════════════════════════════════════════════
    SUPABASE CONFIG
 ═══════════════════════════════════════════════════════════════ */
@@ -246,7 +247,7 @@ async function init() {
     // 2. Check for an existing session (e.g. magic-link redirect).
     //    onAuthStateChange (registered at module level) handles future sign-in/out.
     const { data: { session } } = await _supa.auth.getSession();
-    if (!_session) _session = session;
+    _session = session;
 
     // 3. Populate month selectors
     const today = new Date();
@@ -754,4 +755,16 @@ function importData(event) {
 /* ═══════════════════════════════════════════════════════════════
    GO
 ═══════════════════════════════════════════════════════════════ */
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && _initDone) {
+        const { data: { session } } = await _supa.auth.getSession();
+        _session = session;
+        renderAuthUI();
+        if (_session) {
+            await loadSchedulesFromSupabase();
+            syncSettingsToUI();
+            validateAll();
+        }
+    }
+});
 init();

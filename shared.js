@@ -1,3 +1,4 @@
+// /home/brian/myapps/reserve/shared.js
 function isMobileDevice() {
     const narrow = window.innerWidth <= 768;
     const ua = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);

@@ -1,3 +1,4 @@
+// /home/brian/myapps/reserve/pcs/pcs.js
 /* ═══════════════════════════════════════════════════════════════
    DEVICE DETECTION
 ═══════════════════════════════════════════════════════════════ */
@@ -2530,4 +2531,15 @@ async function start() {
     }
 }
 
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+        const { data: { session } } = await _supa.auth.getSession();
+        _session = session;
+        renderAuthUI();
+        if (_session) {
+            await loadSchedulesFromSupabase();
+            renderAll();
+        }
+    }
+});
 start();
