@@ -422,7 +422,13 @@ function validateAll() {
     if (xUsed !== xReq) alerts.push(xUsed < xReq ? `Need ${xReq - xUsed} more X` : `Too many X`);
 
     let xBlks = 0, inX = false;
-    currDays.forEach(d => { if (d === 'X') { if (!inX) { xBlks++; inX = true; } } else inX = false; });
+    currDays.forEach(d => {
+        if (d === 'X') {
+            if (!inX) { xBlks++; inX = true; }
+        } else if (d !== 'A') {
+            inX = false;
+        }
+    });
     if (xBlks > s.maxX) alerts.push(`Exceeds Max X Blocks`);
 
     const pIdx = currentIdx > 0 ? currentIdx - 1 : null;
