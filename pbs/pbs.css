@@ -186,3 +186,11 @@
 #m-month-selector {
     width: 100%;
 }
+
+#m-palette-bar .m-palette .brush {
+    width: auto;
+    flex: 1;
+    height: 42px;
+    font-size: 11px;
+    min-width: 0;
+}
