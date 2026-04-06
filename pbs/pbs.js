@@ -478,7 +478,7 @@ function onSettingsChange() {
 
 function checkWorkBlock(indices, offset, currLen, combo, alerts, s) {
     if (indices.length === 0) return;
-    if (!indices.some(i => ['R', 'C', 'CQ'].includes(combo[i]))) return;
+    if (!indices.some(i => ['R', 'C'].includes(combo[i]))) return;
     const tEnd = indices.includes(offset + currLen - 1);
     if (indices.length < s.minW && !tEnd) {
         indices.forEach(i => { if (i >= offset && i < offset + currLen) illegalIndices.add(i - offset); });
