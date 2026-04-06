@@ -583,7 +583,7 @@ function writeSaveSnapshot() {
 /* ═══════════════════════════════════════════════════════════════
    IMPORT FROM PBS PLANNER
 ═══════════════════════════════════════════════════════════════ */
-const PBS_TO_PCS_CODE_MAP = { C: 'R' };
+const PBS_TO_PCS_CODE_MAP = { C: 'R', Z: 'X' };
 
 function confirmImportFromPBS(monthName) {
     return new Promise(resolve => {
